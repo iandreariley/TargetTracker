@@ -1,4 +1,4 @@
-from dronekit import connect, VehicleMode
+from dronekit import *
 import time
 
 vehicle = connect('udpin:0.0.0.0:14551', wait_ready=True)
