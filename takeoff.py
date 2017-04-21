@@ -3,6 +3,13 @@ import time
 import math
 from math import cos, tan, sin
 import numpy as np
+import sys
+
+
+PIX_WIDTH = 960
+PIX_HEIGHT = 720
+CAM_X_ANGLE = 48.5 * 180 / math.pi
+CAM_Y_ANGLE = 28.0 * 180 / math.pi
 
 vehicle = connect('udpin:0.0.0.0:14551', wait_ready=True)
 messages = vehicle.message_factory
@@ -146,37 +153,31 @@ def condition_yaw(heading, relative=False):
         
 def constant_update():
     print "starting update"
-    magnitude = 5.0
     counter = 0
+
+    # This should represent the middle of the camera, more or less.
+    # so the heading shouldn't curve at all
+    x = PIX_WIDTH / 2.0
+    y = PIX_HEIGHT / 2.0
     while True:
-        val = float(counter) * math.pi / 1000.0
-        cos_val = math.cos(val)
-        n = magnitude * cos_val
-        e = magnitude * math.sin(val)
-        heading = val * 180.0 / math.pi
-        print "n: %g; e: %g, heading: %g" % (n,e,heading)
-        set_velocity(n, e)
-        condition_yaw(heading)
+        if counter % 100 == 0:
+            set_velocity_from_image(x,y)
+        else:
+            set_velocity_from_image(x,y,True)
         time.sleep(0.1)
         counter += 1
 
 def get_position_input(position_input):
     return map(int, position_input.split())
 
-PIX_WIDTH = 960
-PIX_HEIGHT = 720
-CAM_X_ANGLE = 48.5 * 180 / math.pi
-CAM_Y_ANGLE = 28.0 * 180 / math.pi
-
-def set_velocity_from_image(img_x, img_y):
+def set_velocity_from_image(img_x, img_y, debug=False):
     yaw = vehicle.attitude.yaw
     pitch = vehicle.attitude.pitch
     roll = vehicle.attitude.roll
     altitude = vehicle.location.global_relative_frame.alt
     alpha = -pitch
 
-    # TODO: Make sure x_real isn't an int
-    x_real = img_x / PIX_WIDTH / 2.0
+    x_real = float(img_x) / float(PIX_WIDTH) / 2.0
     y_real = float(img_y) / float(PIX_HEIGHT) / 2.0
     theta_x = CAM_X_ANGLE * x_real
     theta_y = CAM_Y_ANGLE * y_real
@@ -203,10 +204,24 @@ def set_velocity_from_image(img_x, img_y):
     ])
 
     position = np.array([x_rel, y_rel, -altitude])
-
+        
     n, e, d = rbn_roll.dot(rbn_yaw.dot(position))
     horz_plane = np.array([n,e])
-    unit_vector = 15.64 * horz_plane / np.linalg.norm(horz_plane)
+    unit_vector = 5.0 * horz_plane / np.linalg.norm(horz_plane)
+
+    if debug:
+        print "img_x: %d; img_y: %d" % (img_x, img_y)
+        print "yaw: %g; pitch: %g; roll: %g" % (yaw, pitch, roll)
+        print "altitude: %g" % altitude
+        print ""
+        print "angles relative to camera frame in degrees:"
+        print "theta_x: %g; theta_y: %g" % (theta_x, theta_y)
+        print ""
+        print "relative position of target in NED:"
+        print "target_x: %g; target_y: %g" % (x_rel, y_rel)
+        print ""
+        print "velocity vectors (should result in speed~5.0):"
+        print "x: %g; y: %g" % (unit_vector[0], unit_vector[1])
 
     set_velocity(unit_vector[0], unit_vector[1])
     
@@ -243,17 +258,19 @@ def repl_loop():
     print "Executing command: %s" % command
     while command != 'q':
         try:
-            n,e,d = get_position_input(command)
-            print "N: %d; E: %d; D: %d" % (n,e,d)
-            set_position(n,e,d)
+            x,y = get_position_input(command)
+            print "x: %d, y: %d" % (x,y)
+            set_velocity_from_image(x,y,True)
         except:
             print "Uh oh! Something is wrong with that code, try again."
             print "\n",
-            command = get_input()
-
+        command = get_input()
 
 arm_and_takeoff(20)
 
-constant_update()
+if len(sys.argv) > 1 and sys.argv[1] == 'u':
+    constant_update()
+else:
+    repl_loop()
 
-repl_loop()
+
