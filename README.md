@@ -7,3 +7,5 @@ This is the current home of the visual target tracking project undertaken as a j
 - Right now it looks like its not updating correctly, the velocity varies wildly, and the copter seems to buck. Altitude remains constant.
 - In the constant update state, the loop will print debug values a couple times every second.
 - In the read-evaluate-print loop (REPL), the prompt will ask you to enter an X and Y value, separated by a space. Do this and press enter. It will then print a bunch of relavent intermediate values as well as the final velocities in the x and y directions.
+- Clone this repo with `git clone https://www.github.com/iandreariley/TargetTracker/`
+- To pull updates down use `git pull origin master` once insde the TargetTracker Folder.
