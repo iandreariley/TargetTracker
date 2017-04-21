@@ -1,11 +1,13 @@
 from dronekit import *
 import time
+import math
 
 vehicle = connect('udpin:0.0.0.0:14551', wait_ready=True)
+messages = vehicle.message_factory
 
 def get_input():
     print '<<<',
-    return raw_input()
+    return raw_input().strip()
 
 def arm_and_takeoff(aTargetAltitude):
     """
@@ -40,8 +42,6 @@ def arm_and_takeoff(aTargetAltitude):
             print "Reached target altitude"
             break
         time.sleep(1)
-
-
 
 
 def get_location_metres(original_location, dNorth, dEast):
@@ -111,16 +111,67 @@ def goto(dNorth, dEast, gotoFunction=vehicle.simple_goto):
     targetDistance = get_distance_metres(currentLocation, targetLocation)
     gotoFunction(targetLocation)
         
+def constant_update():
+    print "starting update"
+    magnitude = 5.0
+    counter = 0
+    while True:
+        val = float(counter) * math.pi / 1000.0
+        n = magnitude * math.cos(val)
+        e = magnitude * math.sin(val)
+        if counter % 10 == 0:
+            print "n: %g; e: %g" % (n,e)
+        set_velocity(n, e)
+        time.sleep(0.01)
+        counter += 1
+
+def get_position_input(position_input):
+    return map(int, position_input.split())
+
+def set_velocity(n, e):
+    msg = vehicle.message_factory.set_position_target_local_ned_encode(
+        0,       # time_boot_ms (not used)
+        0, 0,    # target system, target component
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
+        0b0000111111000111, # type_mask (only positions enabled)
+        0, 0, 0, # x, y, z positions (or North, East, Down in the MAV_FRAME_BODY_NED frame
+        n, e, 0, # x, y, z velocity in m/s  (not used)
+        0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+    vehicle.send_mavlink(msg)
+
+
+def set_position(north, east, down):
+    msg = vehicle.message_factory.set_position_target_local_ned_encode(
+        0,       # time_boot_ms (not used)
+        0, 0,    # target system, target component
+        mavutil.mavlink.MAV_FRAME_LOCAL_NED, # frame
+        0b0000111111111000, # type_mask (only positions enabled)
+        north, east, down, # x, y, z positions (or North, East, Down in the MAV_FRAME_BODY_NED frame
+        0, 0, 0, # x, y, z velocity in m/s  (not used)
+        0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
+        0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
+    vehicle.send_mavlink(msg)
+
+def repl_loop():
+    
+    print "\nEnter any code you'd like to execute. the vehicle object is called 'vehicle'; so the following will print the vehicle's attitude: 'print vehicle.attitude'"
+
+    command = get_input()
+    print "Executing command: %s" % command
+    while command != 'q':
+        try:
+            n,e,d = get_position_input(command)
+            print "N: %d; E: %d; D: %d" % (n,e,d)
+            set_position(n,e,d)
+        except:
+            print "Uh oh! Something is wrong with that code, try again."
+            print "\n",
+            command = get_input()
+
+
 arm_and_takeoff(20)
 
-print "\nEnter any code you'd like to execute. the vehicle object is called 'vehicle'; so the following will print the vehicle's attitude: 'print vehicle.attitude'"
+constant_update()
 
-command = get_input()
-
-while command != 'q':
-    try:
-        exec(command)
-    except:
-        print "Uh oh! Something is wrong with that code, try again."
-    print "\n",
-    command = get_input()
+repl_loop()
