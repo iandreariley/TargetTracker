@@ -117,7 +117,8 @@ def set_velocity_from_image(img_x, img_y, debug=False):
         
     n, e, d = rbn_roll.dot(rbn_yaw.dot(position))
     horz_plane = np.array([n,e])
-    unit_vector = 5.0 * horz_plane / np.linalg.norm(horz_plane)
+    unit_vector = horz_plane / np.linalg.norm(horz_plane)
+    final_vector = 5.0 * unit_vector
 
     if debug:
         print "img_x: %d; img_y: %d" % (img_x, img_y)
@@ -132,8 +133,9 @@ def set_velocity_from_image(img_x, img_y, debug=False):
         print ""
         print "velocity vectors (should result in speed~5.0):"
         print "x: %g; y: %g" % (unit_vector[0], unit_vector[1])
+        print "final-x: %g; final-y: %g" % (final_vector[0], final_vector[1])
 
-    set_velocity(unit_vector[0], unit_vector[1])
+    set_velocity(final_vector[0], final_vector[1])
     
 def set_velocity(n, e):
     msg = vehicle.message_factory.set_position_target_local_ned_encode(
@@ -165,7 +167,7 @@ def get_input():
     return raw_input().strip()
 
 def get_position_input(position_input):
-    return map(int, position_input.split())
+    return map(float, position_input.split())
             
 def constant_update():
     print "starting update"
