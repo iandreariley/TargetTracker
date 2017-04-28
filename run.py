@@ -10,13 +10,20 @@ import time
 
 import numpy as np
 
-from tracking import CMT
-from tracking import util
+import CMT
+import util
+from controller import VisualController
 
+def get_centroid(CMT):
+        x = CMT.tl[0] - CMT.tr[0]
+        y = CMT.tl[1] - CMT.br[1]
+        return np.array([x,y])
+        
 CMT = CMT.CMT()
 
 parser = argparse.ArgumentParser(description='Track an object.')
 
+parser.add_argument('vehicleurl', help='url for the vehicle to control.')
 parser.add_argument('--preview', dest='preview', action='store_const', const=True, default=None, help='Force preview')
 parser.add_argument('--no-preview', dest='preview', action='store_const', const=False, default=None, help='Disable preview')
 parser.add_argument('--bbox', dest='bbox', help='Specify initial bounding box.')
@@ -24,9 +31,15 @@ parser.add_argument('--output-dir', dest='output', help='Specify a directory for
 parser.add_argument('--quiet', dest='quiet', action='store_true', help='Do not show graphical output (Useful in combination with --output-dir ).')
 
 args = parser.parse_args()
-
 CMT.estimate_scale = True
 CMT.estimate_rotation = False
+
+try:
+        controller = VisualController(args.vehicleurl)
+except Exception as inst:
+        print inst.args
+        print 'Could not connect to vehicle, exiting.'
+        sys.exit(1)
 
 if args.output is not None:
 	if not os.path.exists(args.output):
@@ -107,9 +120,12 @@ while True:
 
         # Display results
 
-        # Draw updated estimate
         if CMT.has_result:
-
+                # get centroid of bounding box and update drone velocity vectors.
+                center_x,center_y = get_centroid(CMT)
+                controller.set_velocity_from_image(center_x,center_y)
+                
+                # Draw updated estimate
                 cv2.line(im_draw, CMT.tl, CMT.tr, (255, 0, 0), 4)
                 cv2.line(im_draw, CMT.tr, CMT.br, (255, 0, 0), 4)
                 cv2.line(im_draw, CMT.br, CMT.bl, (255, 0, 0), 4)
