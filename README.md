@@ -9,3 +9,9 @@ This is the current home of the visual target tracking project undertaken as a j
 - In the read-evaluate-print loop (REPL), the prompt will ask you to enter an X and Y value, separated by a space. Do this and press enter. It will then print a bunch of relavent intermediate values as well as the final velocities in the x and y directions.
 - Clone this repo with `git clone https://www.github.com/iandreariley/TargetTracker/`
 - To pull updates down use `git pull origin master` once insde the TargetTracker Folder.
+- Setup of the hardware is a touch finicky. The following setup has worked in the past:
+    - Plug camera into the USB port _before_ booting the TX1
+    - Boot the TX1
+    - Plug the Pixhawk into the micro-USB port
+    - power on the Pixhawk
+    - Both devices should now be accesible through the /dev/ttyUSB0 device.

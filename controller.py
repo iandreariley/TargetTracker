@@ -13,7 +13,7 @@ CAM_Y_ANGLE = 28.0 * 180 / math.pi
 class VisualController(object):
 
     def __init__(self, vehicle_url):
-        self.vehicle = connect(vehicle_url)
+        self.vehicle = connect(vehicle_url, baud=921600)
 
     def condition_yaw(self, heading, relative=False):
         """
@@ -126,6 +126,9 @@ class VisualController(object):
             0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
             0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
         self.vehicle.send_mavlink(msg)
+
+    def get_attitude(self):
+        return self.vehicle.attitude
 
 if __name__ == '__main__':
     args = sys.argv

@@ -118,8 +118,13 @@ while True:
         CMT.process_frame(im_gray)
         toc = time.time()
 
-        # Display results
+        # Print Attitude to console
+        attitude = controller.get_attitude()
+        print "yaw: %g" % attitude.yaw
+        print "pitch: %g" % attitude.pitch
+        print "roll: %g" % attitude.roll
 
+        # Display results
         if CMT.has_result:
                 # get centroid of bounding box and update drone velocity vectors.
                 center_x,center_y = get_centroid(CMT)
