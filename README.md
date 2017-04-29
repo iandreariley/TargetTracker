@@ -15,3 +15,9 @@ This is the current home of the visual target tracking project undertaken as a j
     - Plug the Pixhawk into the micro-USB port
     - power on the Pixhawk
     - Both devices should now be accesible through the /dev/ttyUSB0 device.
+- To connect over WiFi do the following:
+    - Boot the TX1. Give it about a minute to boot and setup its access point
+    - Connect to the access point. the password is 'enRouteArduPilot'
+    - enter the following command `arp -a` and look for an ip address starting with 10
+    - enter the following command `ssh -Y ubuntu@10.x.x.x` (fill in the xs based on the previous step)
+    - this will log you in to the TX1 as the root user, ubuntu.
