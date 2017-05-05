@@ -1,15 +1,17 @@
 from dronekit import *
 import time
-import math
-from math import cos, tan, sin
+from math import cos, tan, atan, sin, pi
 import numpy as np
 import sys
 
 
 PIX_WIDTH = 960
 PIX_HEIGHT = 720
-CAM_X_ANGLE = 48.5 * 180 / math.pi
-CAM_Y_ANGLE = 28.0 * 180 / math.pi
+Y_SHIFT = PIX_HEIGHT / 2
+X_SHIFT = PIX_WIDTH / 2
+DEGREES_TO_RADIANS = pi / 180
+CAM_X_ANGLE = 48.5 * DEGREES_TO_RADIANS
+CAM_Y_ANGLE = 28.0 * DEGREES_TO_RADIANS
 
 vehicle = connect('udpin:0.0.0.0:14551', wait_ready=True)
 messages = vehicle.message_factory
@@ -50,19 +52,6 @@ def arm_and_takeoff(aTargetAltitude):
 
 
 def condition_yaw(heading, relative=False):
-    """
-    Send MAV_CMD_CONDITION_YAW message to point vehicle at a specified heading (in degrees).
-
-    This method sets an absolute heading by default, but you can set the `relative` parameter
-    to `True` to set yaw relative to the current yaw heading.
-
-    By default the yaw of the vehicle will follow the direction of travel. After setting 
-    the yaw using this function there is no way to return to the default yaw "follow direction 
-    of travel" behaviour (https://github.com/diydrones/ardupilot/issues/2427)
-
-    For more information see: 
-    http://copter.ardupilot.com/wiki/common-mavlink-mission-command-messages-mav_cmd/#mav_cmd_condition_yaw
-    """
     if relative:
         is_relative = 1 #yaw relative to direction of travel
     else:
@@ -80,19 +69,18 @@ def condition_yaw(heading, relative=False):
     # send command to vehicle
     vehicle.send_mavlink(msg)
 
-def set_velocity_from_image(img_x, img_y, debug=False):
-    yaw = vehicle.attitude.yaw
-    pitch = vehicle.attitude.pitch
-    roll = vehicle.attitude.roll
-    altitude = vehicle.location.global_relative_frame.alt
-    alpha = -pitch
+def get_velocity_from_image(img_x, img_y, attitude, altitude):
 
+    yaw = attitude.yaw
+    pitch = attitude.pitch
+    roll = attitude.roll
+    
     x_real = float(img_x) / float(PIX_WIDTH) / 2.0
     y_real = float(img_y) / float(PIX_HEIGHT) / 2.0
     theta_x = CAM_X_ANGLE * x_real
     theta_y = CAM_Y_ANGLE * y_real
 
-    y_rel = altitude / (math.tan(pitch) - theta_y)
+    y_rel = altitude / (math.tan(pitch - theta_y))
     x_rel = y_rel * math.tan(theta_x)
 
     rbn_roll = np.array([
@@ -128,8 +116,86 @@ def set_velocity_from_image(img_x, img_y, debug=False):
         print "angles relative to camera frame in degrees:"
         print "theta_x: %g; theta_y: %g" % (theta_x, theta_y)
         print ""
-        print "relative position of target in NED:"
-        print "target_x: %g; target_y: %g" % (x_rel, y_rel)
+        print "relative position of target:"
+        print "target_x: %g; target_y: %g; target_h: %g" % (x_rel, y_rel, -altitude)
+        print ""
+        print "NED position of target:"
+        print "north: %g; east: %g" % (n,e)
+        print "velocity vectors (should result in speed~5.0):"
+        print "x: %g; y: %g" % (unit_vector[0], unit_vector[1])
+        print "final-x: %g; final-y: %g" % (final_vector[0], final_vector[1])
+    return final_vector
+
+def get_img_position_from_ned(n, e):
+    yaw = vehicle.attitude.yaw
+    pitch = vehicle.attitude.pitch
+    roll = vehicle.attitude.roll
+    altitude = vehicle.location.global_relative_frame.alt
+    
+    x_drone = e * cos(yaw) + n * sin(-yaw)
+    y_drone = e * sin(yaw) + n * cos(yaw)
+
+    theta_x = CAM_X_ANGLE / 2.0 + atan(x_drone / y_drone)
+    theta_y = -pitch + atan(altitude / y_drone)
+
+    img_x = (theta_x / CAM_X_ANGLE) * PIX_WIDTH
+    img_y = float(Y_SHIFT) + (theta_y / CAM_Y_ANGLE * 2.0) * PIX_HEIGHT
+    return img_x, img_y
+    
+def set_velocity_from_image(img_x, img_y, debug=False):
+    x = img_x - X_SHIFT
+    y = -img_y + Y_SHIFT
+    yaw = vehicle.attitude.yaw
+    pitch = vehicle.attitude.pitch
+    roll = vehicle.attitude.roll
+    altitude = vehicle.location.global_relative_frame.alt
+    x_real = float(x) / float(X_SHIFT)
+    y_real = float(y) / float(PIX_HEIGHT) / 2.0
+    theta_x = CAM_X_ANGLE * x_real / 2.0
+    theta_y = CAM_Y_ANGLE * y_real
+        
+    y_rel = altitude / (math.tan(pitch - theta_y))
+    x_rel = y_rel * math.tan(theta_x)
+
+    rbn_roll = np.array([
+        [1,0,0],
+        [0, cos(roll), sin(roll)],
+        [0, -sin(roll), cos(roll)]
+    ])
+
+    rbn_yaw = np.array([
+        [cos(yaw), sin(yaw), 0],
+        [-sin(yaw), cos(yaw), 0],
+        [0, 0, 1]
+    ])
+
+    rbn_pitch = np.array([
+        [cos(pitch), 0, -sin(pitch)],
+        [0, 1, 0],
+        [sin(pitch), 0, cos(pitch)]
+    ])
+
+    position = np.array([x_rel, y_rel, -altitude])
+        
+    e, n, d = rbn_roll.dot(rbn_yaw.dot(position))
+    horz_plane = np.array([n,e])
+    unit_vector = horz_plane / np.linalg.norm(horz_plane)
+    final_vector = 5.0 * unit_vector
+
+    if debug:
+        print "img_x: %d; img_y: %d" % (img_x, img_y)
+        print "x: %d; y: %d" % (x, y)
+        print "yaw: %g; pitch: %g; roll: %g" % (yaw, pitch, roll)
+        print "altitude: %g" % altitude
+        print ""
+        print "angles relative to camera frame in degrees:"
+        print "theta_x: %g; theta_y: %g" % (theta_x, theta_y)
+        print ""
+        print "relative position of target:"
+        print "target_x: %g; target_y: %g; target_h: %g" % (x_rel, y_rel, -altitude)
+        print ""
+        print "NED position of target:"
+        print "north: %g; east: %g" % (n,e)
         print ""
         print "velocity vectors (should result in speed~5.0):"
         print "x: %g; y: %g" % (unit_vector[0], unit_vector[1])
@@ -175,13 +241,17 @@ def constant_update():
 
     # This should represent the middle of the camera, more or less.
     # so the heading shouldn't curve at all
-    x = PIX_WIDTH / 2.0
-    y = PIX_HEIGHT / 2.0
+    print "setting heading to due north..."
+    condition_yaw(0)
+    time.sleep(5)
+    n = 200
+    e = 0
     while True:
+        x, y = get_img_position_from_ned(n, e)
         if counter % 100 == 0:
-            set_velocity_from_image(x,y)
-        else:
             set_velocity_from_image(x,y,True)
+        else:
+            set_velocity_from_image(x,y)
         time.sleep(0.1)
         counter += 1
 
