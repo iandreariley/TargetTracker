@@ -149,12 +149,13 @@ def set_velocity_from_image(img_x, img_y, debug=False):
     pitch = vehicle.attitude.pitch
     roll = vehicle.attitude.roll
     altitude = vehicle.location.global_relative_frame.alt
+    
     x_real = float(x) / float(X_SHIFT)
     y_real = float(y) / float(PIX_HEIGHT) / 2.0
     theta_x = CAM_X_ANGLE * x_real / 2.0
     theta_y = CAM_Y_ANGLE * y_real
         
-    y_rel = altitude / (math.tan(pitch - theta_y))
+    y_rel = altitude / (math.tan(-pitch - theta_y))
     x_rel = y_rel * math.tan(theta_x)
 
     rbn_roll = np.array([
@@ -202,6 +203,7 @@ def set_velocity_from_image(img_x, img_y, debug=False):
         print "final-x: %g; final-y: %g" % (final_vector[0], final_vector[1])
 
     set_velocity(final_vector[0], final_vector[1])
+    condition_yaw(atan(e / n) * 180 / pi)
     
 def set_velocity(n, e):
     msg = vehicle.message_factory.set_position_target_local_ned_encode(
@@ -245,7 +247,7 @@ def constant_update():
     condition_yaw(0)
     time.sleep(5)
     n = 200
-    e = 0
+    e = 200
     while True:
         x, y = get_img_position_from_ned(n, e)
         if counter % 100 == 0:
