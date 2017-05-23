@@ -6,13 +6,13 @@ from numpy import empty, nan
 import os
 import sys
 import time
-
+from dronekit import *
 
 import numpy as np
 
 import CMT
 import util
-from controller import VisualController
+from controls import set_velocity_from_image
 
 def get_centroid(CMT):
         x = CMT.tl[0] - CMT.tr[0]
@@ -20,6 +20,7 @@ def get_centroid(CMT):
         return np.array([x,y])
         
 CMT = CMT.CMT()
+BAUD = 921600
 
 parser = argparse.ArgumentParser(description='Track an object.')
 
@@ -33,9 +34,9 @@ parser.add_argument('--quiet', dest='quiet', action='store_true', help='Do not s
 args = parser.parse_args()
 CMT.estimate_scale = True
 CMT.estimate_rotation = False
-
+print(args.vehicleurl)
 try:
-        controller = VisualController(args.vehicleurl)
+        vehicle = connect(args.vehicleurl, baud=BAUD, wait_ready=False)
 except Exception as inst:
         print inst.args
         print 'Could not connect to vehicle, exiting.'
@@ -55,6 +56,11 @@ preview = args.preview
 
 # If no input path was specified, open camera device
 cap = cv2.VideoCapture(0)
+i = 1
+while not cap.isOpened() and i < 10:
+        cap = cv2.VideoCapture(i)
+        i += 1
+        
 if preview is None:
         preview = True
 
@@ -119,7 +125,7 @@ while True:
         toc = time.time()
 
         # Print Attitude to console
-        attitude = controller.get_attitude()
+        attitude = vehicle.attitude
         print "yaw: %g" % attitude.yaw
         print "pitch: %g" % attitude.pitch
         print "roll: %g" % attitude.roll
@@ -128,7 +134,7 @@ while True:
         if CMT.has_result:
                 # get centroid of bounding box and update drone velocity vectors.
                 center_x,center_y = get_centroid(CMT)
-                controller.set_velocity_from_image(center_x,center_y)
+                set_velocity_from_image(vehicle, center_x, center_y)
                 
                 # Draw updated estimate
                 cv2.line(im_draw, CMT.tl, CMT.tr, (255, 0, 0), 4)
