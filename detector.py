@@ -1,4 +1,5 @@
-import scipy.misc as misc
+import scipy.misc
+import scipy.io
 import tensorflow as tf
 import numpy as np
 import json
@@ -6,15 +7,16 @@ import os
 
 
 # TODO: Not a good place for these variables, move elsewhere.
-_conv_stride = np.array([2,1,1,1,1])
-_filtergroup_yn = np.array([0,1,0,1,1], dtype=bool)
-_bnorm_yn = np.array([1,1,1,1,0], dtype=bool)
-_relu_yn = np.array([1,1,1,1,0], dtype=bool)
-_pool_stride = np.array([2,1,0,0,0]) # 0 means no pool
+_conv_stride = np.array([2, 1, 1, 1, 1])
+_filtergroup_yn = np.array([0, 1, 0, 1, 1], dtype=bool)
+_bnorm_yn = np.array([1, 1, 1, 1, 0], dtype=bool)
+_relu_yn = np.array([1, 1, 1, 1, 0], dtype=bool)
+_pool_stride = np.array([2, 1, 0, 0, 0])  # 0 means no pool
 _pool_sz = 3
 _bnorm_adjust = True
 
-class SiamFC():
+
+class SiamFC:
     """Deep-learning based one-shot object detection as described in:
 
     Title: Fully-Convolutional Siamese Networks for Object Tracking
@@ -25,10 +27,10 @@ class SiamFC():
     Year: 2016
 
     Attributes:
-        top_left (int, int): The x, y coordinates of the top left corner of the bounding box of the
-        most recent image.
-        bottom_right (int, int): The x, y coordinates of the bottom right corner of the bounding
-        box of the most recent image.
+        location (int, int, int, int): 4-tuple of integers representing the current location of
+            the target in the most recent image as a bounding box in (x, y, w, h) format. Where
+            (x, y) are the image coordinates of the top left corner of the bounding box, and w,
+            h are the width and height of the bounding box respectively.
     """
 
 
@@ -47,8 +49,8 @@ class SiamFC():
         self._environment_params = self._load_json_file('environment.json')
         self._evaluation_params = self._load_json_file('evaluation.json')
         self._hyper_params = self._load_json_file('hyperparms.json')
-        self.image, self.templates_z, self.scores_up = self._build_tracking_graph()
-        self.final_score_sz = hp.response_up * (design.score_sz - 1) + 1
+        self.image, self.templates_z, self.scores = self._build_tracking_graph()
+        self.final_score_sz = self._hyper_params.response_up * (self._design_params.score_sz - 1) + 1
 
         scale_num = self._hyper_params.scale_num
         scale_step = self._hyper_params.scale_step
@@ -60,7 +62,7 @@ class SiamFC():
         penalty = np.transpose(self.hann_1d) * self.hann_1d
         self.penalty = penalty / np.sum(penalty)
 
-    def set_target(image, bbox):
+    def set_target(self, image, bbox):
         """Set target by providing a picture of the target and bounding box around target.
 
         Args:
@@ -79,7 +81,7 @@ class SiamFC():
         self.location = bbox
         self.context = self._design_params.context*(target_w+target_h)
         self.z_sz = np.sqrt(np.prod((target_w+self.context)*(target_h+self.context)))
-        self.x_sz = float(self._design_params.search_sz) / self._design_params.exemplar_sz * z_sz
+        self.x_sz = float(self._design_params.search_sz) / self._design_params.exemplar_sz * self.z_sz
 
         # thresholds to saturate patches shrinking/growing
         self.min_z = self._hyper_params.scale_min * self.z_sz
@@ -90,12 +92,12 @@ class SiamFC():
         # Extract target features and hold in memory.
         with tf.Session() as sess:
             tf.initialize_all_variables().run()
-            self.template = np.squeeze(sess.run(templates_z, feed_dict={self.pos_x_ph: pos_x,
+            self.template = np.squeeze(sess.run(self.templates_z, feed_dict={self.pos_x_ph: pos_x,
                                                                         self.pos_y_ph: pos_y,
-                                                                        self.z_sz_ph: z_sz,
+                                                                        self.z_sz_ph: self.z_sz,
                                                                         image: image}))
 
-    def detect(image):
+    def detect(self, image):
         """Get bounding box for target in next image.
 
         Args:
@@ -117,46 +119,50 @@ class SiamFC():
         window_influence = self._hyper_params.window_influence
 
         # Run forward inference to get score map for search areas.
-        scores_ = sess.run(
-            [scores],
-            feed_dict={
-                self.pos_x_ph: pos_x,
-                self.pos_y_ph: pos_y,
-                self.x_sz0_ph: scaled_search_area[0],
-                self.x_sz1_ph: scaled_search_area[1],
-                self.x_sz2_ph: scaled_search_area[2],
-                templates_z: self.template,
-                image: image}, **run_opts)
-        scores_ = np.squeeze(scores_)
+        with tf.Session() as sess:
+            run_opts = {}  # TODO: Run opts obviously unnecessary. Here to make code work. Eliminate.
+            score_maps_by_scale = sess.run(
+                [self.scores],
+                feed_dict={
+                    self.pos_x_ph: pos_x,
+                    self.pos_y_ph: pos_y,
+                    self.x_sz0_ph: scaled_search_area[0],
+                    self.x_sz1_ph: scaled_search_area[1],
+                    self.x_sz2_ph: scaled_search_area[2],
+                    self.templates_z: self.template,
+                    image: image}, **run_opts)
+            score_maps_by_scale = np.squeeze(score_maps_by_scale)
 
-        # penalize change of scale
-        scores_[0,:,:] = scale_penalty*scores_[0,:,:]
-        scores_[2,:,:] = scale_penalty*scores_[2,:,:]
+            # penalize change of scale
+            score_maps_by_scale[0,:,:] = scale_penalty*score_maps_by_scale[0,:,:]
+            score_maps_by_scale[2,:,:] = scale_penalty*score_maps_by_scale[2,:,:]
 
-        # find scale with highest peak (after penalty)
-        new_scale_id = np.argmax(np.amax(scores_, axis=(1,2)))
+            # find scale with highest peak (after penalty)
+            best_score_map_id = np.argmax(np.amax(score_maps_by_scale, axis=(1, 2)))
 
-        # update scaled sizes
-        x_sz = (1-scale_lr)*x_sz + scale_lr*scaled_search_area[new_scale_id]
-        target_w = (1-scale_lr)*target_w + scale_lr*scaled_target_w[new_scale_id]
-        target_h = (1-scale_lr)*target_h + scale_lr*scaled_target_h[new_scale_id]
+            # update scaled sizes
+            self.x_sz = (1-scale_lr) * self.x_sz + scale_lr * scaled_search_area[best_score_map_id]
+            target_w = (1-scale_lr) * target_w + scale_lr * scaled_target_w[best_score_map_id]
+            target_h = (1-scale_lr) * target_h + scale_lr * scaled_target_h[best_score_map_id]
 
-        # select response with new_scale_id
-        score_ = scores_[new_scale_id,:,:]
+            # select response with new_scale_id
+            best_score_map = score_maps_by_scale[best_score_map_id, :, :]
 
-        # normalize scores. TODO: Not exactly sure why we're doing this.
-        score_ = score_ - np.min(score_)
-        score_ = score_/np.sum(score_)
+            # normalize scores. TODO: Not exactly sure why we're doing this.
+            best_score_map = best_score_map - np.min(best_score_map)
+            best_score_map = best_score_map / np.sum(best_score_map)
 
-        # apply displacement penalty
-        score_ = (1-window_influence) * score_ + window_influence * self.penalty
-        pos_x, pos_y = _update_target_position(pos_x, pos_y, score_)
+            # apply displacement penalty
+            best_score_map = (1 - window_influence) * best_score_map + window_influence * self.penalty
+            pos_x, pos_y = self._update_target_position(pos_x, pos_y, best_score_map)
 
-        # convert <cx,cy,w,h> to <x,y,w,h> and save output
-        self.location = pos_x-target_w/2, pos_y-target_h/2, target_w, target_h
+            # convert <cx,cy,w,h> to <x,y,w,h> and save output
+            self.location = pos_x-target_w / 2, pos_y-target_h / 2, target_w, target_h
 
-        # update template patch size
-        z_sz = (1-scale_lr)*self.z_sz + scale_lr*scaled_exemplar[new_scale_id]
+            # update template patch size
+            self.z_sz = (1-scale_lr) * self.z_sz + scale_lr * scaled_exemplar[best_score_map_id]
+
+        return self.location
 
     def _update_target_position(self, pos_x, pos_y, score):
         # find location of score maximizer
@@ -167,7 +173,8 @@ class SiamFC():
         disp_in_area = p - center
 
         # displacement from the center in instance crop
-        disp_in_xcrop = disp_in_area * float(self._design_params.tot_stride) / self._hyper_params.response_up
+        disp_in_xcrop = disp_in_area * float(self._design_params.tot_stride) / \
+                        self._hyper_params.response_up
 
         # displacement from the center in instance crop (in frame coordinates)
         disp_in_frame = disp_in_xcrop *  self.x_sz / self._design_params.search_sz
@@ -177,50 +184,49 @@ class SiamFC():
 
         return new_pos_x, new_pos_y
 
-    def _load_json_file(filename):
+    def _load_json_file(self, filename):
         with open(filename) as json_file:
             return json.load(json_file)
 
-    def _build_tracking_graph():
-
-        score_map_dim = self._hyper_params.response up * (self._design_params.score_sz - 1) + 1
+    def _build_tracking_graph(self):
+        score_map_dim = self._hyper_params.response_up * (self._design_params.score_sz - 1) + 1
         image = tf.placeholder(dtype=tf.float32, shape=(None,None,None), name='image')
         frame_sz = tf.shape(image)
         avg_chan = tf.reduce_mean(image, reduction_indices=(0,1), name='avg_chan')
 
         # pad with if necessary
-        frame_padded_z, npad_z = _pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
+        frame_padded_z, npad_z = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
                                             self.z_sz_ph, avg_chan)
         frame_padded_z = tf.cast(frame_padded_z, tf.float32)
 
         # extract tensor of z_crops
-        z_crops = _extract_crops_z(frame_padded_z, npad_z, self.pos_x_ph, self.pos_y_ph,
+        z_crops = self._extract_crops_z(frame_padded_z, npad_z, self.pos_x_ph, self.pos_y_ph,
                                    self.z_sz_ph,self._design_params.exemplar_sz)
-        frame_padded_x, npad_x = _pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
+        frame_padded_x, npad_x = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
                                             self.x_sz2_ph, avg_chan)
         frame_padded_x = tf.cast(frame_padded_x, tf.float32)
 
         # extract tensor of x_crops (3 scales)
-        x_crops = _extract_crops_x(frame_padded_x, npad_x, self.pos_x_ph, self.pos_y_ph,
+        x_crops = self._extract_crops_x(frame_padded_x, npad_x, self.pos_x_ph, self.pos_y_ph,
                                    self.x_sz0_ph, self.x_sz1_ph, self.x_sz2_ph,
                                    self._design_params.search_sz)
 
         # use crops as input of (MatConvnet imported) pre-trained fully-convolutional Siamese net
         weights_path = os.path.join(self._environment_params.root_pretrained,
                                     self._design_params.net)
-        template_z, templates_x, p_names_list, p_val_list = _create_siamese(weights_path, x_crops,
-                                                                            z_crops)
+        template_z, templates_x, p_names_list, p_val_list = \
+            self._create_siamese(weights_path, x_crops, z_crops)
         template_z = tf.squeeze(template_z)
         templates_z = tf.pack([template_z, template_z, template_z])
 
         # compare templates via cross-correlation
-        scores = _match_templates(templates_z, templates_x, p_names_list, p_val_list)
+        scores = self._match_templates(templates_z, templates_x, p_names_list, p_val_list)
         # upsample the score maps
         scores_up = tf.image.resize_images(scores, [score_map_dim, score_map_dim],
             method=tf.image.ResizeMethod.BICUBIC, align_corners=True)
         return image, templates_z, scores_up
 
-    def _pad_frame(im, frame_sz, pos_x, pos_y, patch_sz, avg_chan):
+    def _pad_frame(self, im, frame_sz, pos_x, pos_y, patch_sz, avg_chan):
         c = patch_sz / 2
         xleft_pad = tf.maximum(0, -tf.cast(tf.round(pos_x - c), tf.int32))
         ytop_pad = tf.maximum(0, -tf.cast(tf.round(pos_y - c), tf.int32))
@@ -236,7 +242,7 @@ class SiamFC():
             im_padded = im_padded + avg_chan
         return im_padded, npad
 
-    def _extract_crops_z(im, npad, pos_x, pos_y, sz_src, sz_dst):
+    def _extract_crops_z(self, im, npad, pos_x, pos_y, sz_src, sz_dst):
         c = sz_src / 2
         # get top-right corner of bbox and consider padding
         tr_x = npad + tf.cast(tf.round(pos_x - c), tf.int32)
@@ -254,7 +260,7 @@ class SiamFC():
         crops = tf.expand_dims(crop, dim=0)
         return crops
 
-    def _extract_crops_x(im, npad, pos_x, pos_y, sz_src0, sz_src1, sz_src2, sz_dst):
+    def _extract_crops_x(self, im, npad, pos_x, pos_y, sz_src0, sz_src1, sz_src2, sz_dst):
         # take center of the biggest scaled source patch
         c = sz_src2 / 2
         # get top-right corner of bbox and consider padding
@@ -292,26 +298,26 @@ class SiamFC():
         return crops
 
     # import pretrained Siamese network from matconvnet
-    def _create_siamese(net_path, net_x, net_z):
+    def _create_siamese(self, net_path, net_x, net_z):
         # read mat file from net_path and start TF Siamese graph from placeholders X and Z
-        params_names_list, params_values_list = _import_from_matconvnet(net_path)
+        params_names_list, params_values_list = self._import_from_matconvnet(net_path)
 
         # loop through the flag arrays and re-construct network, reading parameters of conv and
         # bnorm layers
-        for i in xrange(_num_layers):
+        for i in xrange(self._num_layers):
             print '> Layer '+str(i+1)
             # conv
-            conv_W_name = _find_params('conv'+str(i+1)+'f', params_names_list)[0]
-            conv_b_name = _find_params('conv'+str(i+1)+'b', params_names_list)[0]
+            conv_W_name = self._find_params('conv'+str(i+1)+'f', params_names_list)[0]
+            conv_b_name = self._find_params('conv'+str(i+1)+'b', params_names_list)[0]
             print '\t\tCONV: setting '+conv_W_name+' '+conv_b_name
             print '\t\tCONV: stride '+str(_conv_stride[i])+', filter-group '+str(_filtergroup_yn[i])
             conv_W = params_values_list[params_names_list.index(conv_W_name)]
             conv_b = params_values_list[params_names_list.index(conv_b_name)]
             # batchnorm
             if _bnorm_yn[i]:
-                bn_beta_name = _find_params('bn'+str(i+1)+'b', params_names_list)[0]
-                bn_gamma_name = _find_params('bn'+str(i+1)+'m', params_names_list)[0]
-                bn_moments_name = _find_params('bn'+str(i+1)+'x', params_names_list)[0]
+                bn_beta_name = self._find_params('bn'+str(i+1)+'b', params_names_list)[0]
+                bn_gamma_name = self._find_params('bn'+str(i+1)+'m', params_names_list)[0]
+                bn_moments_name = self._find_params('bn'+str(i+1)+'x', params_names_list)[0]
                 print '\t\tBNORM: setting '+bn_beta_name+' '+bn_gamma_name+' '+bn_moments_name
                 bn_beta = params_values_list[params_names_list.index(bn_beta_name)]
                 bn_gamma = params_values_list[params_names_list.index(bn_gamma_name)]
@@ -322,13 +328,13 @@ class SiamFC():
                 bn_beta = bn_gamma = bn_moving_mean = bn_moving_variance = []
 
             # set up conv "block" with bnorm and activation
-            net_x = _set_convolutional(net_x, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i], \
+            net_x = self._set_convolutional(net_x, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i], \
                                 bn_beta, bn_gamma, bn_moving_mean, bn_moving_variance, \
                                 filtergroup=_filtergroup_yn[i], batchnorm=_bnorm_yn[i], \
                                 activation=_relu_yn[i], scope='conv'+str(i+1), reuse=False)
 
             # notice reuse=True for Siamese parameters sharing
-            net_z = _set_convolutional(net_z, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i], \
+            net_z = self._set_convolutional(net_z, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i], \
                                 bn_beta, bn_gamma, bn_moving_mean, bn_moving_variance, \
                                 filtergroup=_filtergroup_yn[i], batchnorm=_bnorm_yn[i], \
                                 activation=_relu_yn[i], scope='conv'+str(i+1), reuse=True)
@@ -345,7 +351,7 @@ class SiamFC():
 
         return net_z, net_x, params_names_list, params_values_list
 
-    def _set_convolutional(X, W, b, stride, bn_beta, bn_gamma, bn_mm, bn_mv, filtergroup=False,
+    def _set_convolutional(self, X, W, b, stride, bn_beta, bn_gamma, bn_mm, bn_mv, filtergroup=False,
                           batchnorm=True, activation=True, scope=None, reuse=False):
 
         # use the input scope or default to "conv"
@@ -394,7 +400,7 @@ class SiamFC():
 
             return h
 
-    def _import_from_matconvnet(net_path):
+    def _import_from_matconvnet(self, net_path):
         mat = scipy.io.loadmat(net_path)
         net_dot_mat = mat.get('net')
         # organize parameters to import
@@ -414,7 +420,7 @@ class SiamFC():
         return matching
 
 
-    def _match_templates(net_z, net_x, params_names_list, params_values_list):
+    def _match_templates(self, net_z, net_x, params_names_list, params_values_list):
         # finalize network
         # z, x are [B, H, W, C]
         net_z = tf.transpose(net_z, perm=[1,2,0,3])
