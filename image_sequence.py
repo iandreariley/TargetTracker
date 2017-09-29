@@ -1,0 +1,51 @@
+import os
+import scipy.misc
+
+
+class DirectorySequence:
+    """Iterable image sequence drawn from a directory of image files."""
+
+    def __init__(self, sequence_directory, ordering=None, image_format='jpg'):
+        """Initialize sequence from directory.
+
+        Args:
+            sequence_directory (str): path to directory that contains image sequence (as individual files).
+            ordering (fn): Optional. A function to be passed to the `key` argument to the `sorted` built-in function
+                which is used to order images by filename. If nothing is passed, all files with an `image_format`
+                extension are ordered numerically.
+            image_format (str): Optional. The image format of the image files in the sequence. Identified by the file
+                extension used for these files (e.g. `jpg`).
+
+        Raises:
+            FileNotFoundException: If `sequence_directory` does not exist.
+        """
+
+        image_files = filter(lambda filename: filename.endswith(image_format), os.listdir(sequence_directory))
+
+        if ordering is None:
+            ordering = self._numerical_value
+
+        self._sequence = sorted(image_files, key=ordering)
+        self._index = 0
+        self._size = len(self._sequence)
+
+        if len(self._sequence) == 0:
+            raise ValueError("Sequence could not be initialized! No files of type '{0}' could be found in directory "
+                             "'{1}'".format(image_format, sequence_directory))
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self._index < self._size:
+            img = scipy.misc.imread(self._sequence[self._index])
+            self._index += 1
+            return img
+        else:
+            self._index = 0
+            raise StopIteration()
+
+    @staticmethod
+    def _numerical_value(filename):
+        """Turn filename (minus extension) into an integer value"""
+        return int(filename[:filename.index('.')])
