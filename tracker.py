@@ -1,6 +1,7 @@
 from __future__ import print_function
 import collections
 import logging
+import util
 
 
 class SimpleTracker:
@@ -15,7 +16,7 @@ class SimpleTracker:
             sequence.
     """
 
-    def __init__(self, sequence, detector, bbox):
+    def __init__(self, sequence, detector, bbox=None):
         """Initialize Tracker with an image sequence, target location and a means of tracking / detection.
 
         Args:
@@ -28,7 +29,7 @@ class SimpleTracker:
         self._detector = detector
         self._subscribers = []
         self.current_image = next(self._sequence)
-        self.current_location = bbox
+        self.current_location = bbox or util.to_xywh(util.get_rect(self.current_image))
         self.locations = collections.OrderedDict({self.current_image: self.current_location})
 
     def track(self):
