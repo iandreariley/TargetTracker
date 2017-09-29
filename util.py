@@ -186,3 +186,27 @@ def bb2pts(bbs):
 	pts = hstack((bbs[:, :2], br(bbs)))
 
 	return pts
+
+def to_tl_br(bbox):
+	"""Convert (x, y, w, h) bbox to (x1, y1, x2, y2), where (x1, y1) = top left corner, (x2, y2) = bottom right.
+
+    Args:
+        bbox: (int, int, int, int): Bounding box around target in (x, y, w, h)
+            format. x and y are image coordinates of the top left corner of the bounding box.
+            w and h are the width and height of the bounding box respectively.
+    """
+
+	left, top, width, height = bbox
+	return (left, top), (left + width, top + height)
+
+def to_xywh(tl, br):
+	"""Convert (x1, y1, x2, y2) bbox to (x, y, w, h).
+
+    Args:
+        tl (int, int): The coordinates of the top-left corner of the bounding box.
+        br (int, int): The coordinates of the bottom-right corner of the bounding box.
+    """
+
+	left, top = tl
+	right, bottom = br
+	return left, top, right - left, bottom - top
