@@ -4,6 +4,7 @@ import argparse
 import cv2
 from numpy import empty, nan
 import os
+from os.path import isdir
 import sys
 import time
 from dronekit import *
@@ -14,21 +15,32 @@ import CMT
 import util
 from controls import set_velocity_from_image
 
+video_directory = "videos/"
+BAUD = 921600
+
 def get_centroid(CMT):
         x = CMT.tl[0] - CMT.tr[0]
         y = CMT.tl[1] - CMT.br[1]
         return np.array([x,y])
+
+def create_video_directory():
+        video_count = 0
+        for item in os.listdir(video_directory):
+                if isdir(video_directory + item):
+                        video_count += 1
+        new_video_path = video_directory + "video_" + str(video_count + 1)
+        os.mkdir(new_video_path)
+        return new_video_path
+
         
 CMT = CMT.CMT()
-BAUD = 921600
 
 parser = argparse.ArgumentParser(description='Track an object.')
 
-parser.add_argument('vehicleurl', help='url for the vehicle to control.')
+parser.add_argument('--vehicleurl', help='url for the vehicle to control.', default='/dev/ttyUSB0')
 parser.add_argument('--preview', dest='preview', action='store_const', const=True, default=None, help='Force preview')
 parser.add_argument('--no-preview', dest='preview', action='store_const', const=False, default=None, help='Disable preview')
 parser.add_argument('--bbox', dest='bbox', help='Specify initial bounding box.')
-parser.add_argument('--output-dir', dest='output', help='Specify a directory for output data.')
 parser.add_argument('--quiet', dest='quiet', action='store_true', help='Do not show graphical output (Useful in combination with --output-dir ).')
 
 args = parser.parse_args()
@@ -37,17 +49,12 @@ CMT.estimate_rotation = False
 print(args.vehicleurl)
 try:
         vehicle = connect(args.vehicleurl, baud=BAUD, wait_ready=False)
+        vehicle.mode = VehicleMode('GUIDED')
+        vehicle.armed = True
 except Exception as inst:
         print inst.args
         print 'Could not connect to vehicle, exiting.'
         sys.exit(1)
-
-if args.output is not None:
-	if not os.path.exists(args.output):
-		os.mkdir(args.output)
-	elif not os.path.isdir(args.output):
-		raise Exception(args.output + ' exists, but is not a directory')
-
 
  # Clean up
 cv2.destroyAllWindows()
@@ -60,6 +67,8 @@ i = 1
 while not cap.isOpened() and i < 10:
         cap = cv2.VideoCapture(i)
         i += 1
+
+print("connected on %d" % (i - 1))
         
 if preview is None:
         preview = True
@@ -112,23 +121,19 @@ print 'using', tl, br, 'as init bb'
 CMT.initialise(im_gray0, tl, br)
 
 frame = 1
-while True:
+video_path = create_video_directory()
+
+stopped = False
+start = time.time()
+while not stopped:
         # Read image
         status, im = cap.read()
         if not status:
                 break
         im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
         im_draw = np.copy(im)
-
-        tic = time.time()
+        print(im.shape)
         CMT.process_frame(im_gray)
-        toc = time.time()
-
-        # Print Attitude to console
-        attitude = vehicle.attitude
-        print "yaw: %g" % attitude.yaw
-        print "pitch: %g" % attitude.pitch
-        print "roll: %g" % attitude.roll
 
         # Display results
         if CMT.has_result:
@@ -147,32 +152,7 @@ while True:
         util.draw_keypoints(CMT.votes[:, :2], im_draw)  # blue
         util.draw_keypoints(CMT.outliers[:, :2], im_draw, (0, 0, 255))
 
-        if args.output is not None:
-                # Original image
-                cv2.imwrite('{0}/input_{1:08d}.png'.format(args.output, frame), im)
-                # Output image
-                cv2.imwrite('{0}/output_{1:08d}.png'.format(args.output, frame), im_draw)
-
-                # Keypoints
-                with open('{0}/keypoints_{1:08d}.csv'.format(args.output, frame), 'w') as f:
-                        f.write('x y\n')
-                        np.savetxt(f, CMT.tracked_keypoints[:, :2], fmt='%.2f')
-
-                # Outlier
-                with open('{0}/outliers_{1:08d}.csv'.format(args.output, frame), 'w') as f:
-                        f.write('x y\n')
-                        np.savetxt(f, CMT.outliers, fmt='%.2f')
-
-                # Votes
-                with open('{0}/votes_{1:08d}.csv'.format(args.output, frame), 'w') as f:
-                        f.write('x y\n')
-                        np.savetxt(f, CMT.votes, fmt='%.2f')
-
-                # Bounding box
-                with open('{0}/bbox_{1:08d}.csv'.format(args.output, frame), 'w') as f:
-                        f.write('x y\n')
-                        # Duplicate entry tl is not a mistake, as it is used as a drawing instruction
-                        np.savetxt(f, np.array((CMT.tl, CMT.tr, CMT.br, CMT.bl, CMT.tl)), fmt='%.2f')
+        cv2.imwrite(video_path + "/" +  str(frame) + ".png", im_draw)
 
         if not args.quiet:
                 cv2.imshow('main', im_draw)
@@ -190,5 +170,6 @@ while True:
 
         # Advance frame number
         frame += 1
-
-        print '{5:04d}: center: {0:.2f},{1:.2f} scale: {2:.2f}, active: {3:03d}, {4:04.0f}ms'.format(CMT.center[0], CMT.center[1], CMT.scale_estimate, CMT.active_keypoints.shape[0], 1000 * (toc - tic), frame)
+end = time.time()
+print('fps: %f' % (frame / (end - start)))
+#        print '{5:04d}: center: {0:.2f},{1:.2f} scale: {2:.2f}, active: {3:03d}, {4:04.0f}ms'.format(CMT.center[0], CMT.center[1], CMT.scale_estimate, CMT.active_keypoints.shape[0], 1000 * (toc - tic), frame)
