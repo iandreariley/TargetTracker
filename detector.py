@@ -1,9 +1,11 @@
 import scipy.misc
 import scipy.io
 import tensorflow as tf
+import cv2
 import numpy as np
 import json
 import os
+import CMT
 
 
 # TODO: Not a good place for these variables, move elsewhere.
@@ -61,6 +63,7 @@ class SiamFC:
         self.hann_1d = np.expand_dims(np.hanning(self.final_score_sz), axis=0)
         penalty = np.transpose(self.hann_1d) * self.hann_1d
         self.penalty = penalty / np.sum(penalty)
+        self.location = None
 
     def set_target(self, image, bbox):
         """Set target by providing a picture of the target and bounding box around target.
@@ -108,6 +111,9 @@ class SiamFC:
                 (x, y, width, height) where x and y are the top left corner of the bounding box.
         """
 
+        if self.location is None:
+            raise ValueError("CmtDetector.detect was called before it was initialized! CmtDetector.set_target must be "
+                             "called first!")
         # Variable set up.
         pos_x, pos_y, target_w, target_h = self.location
         scaled_exemplar = self.z_sz * self.scale_factors
@@ -201,15 +207,15 @@ class SiamFC:
 
         # extract tensor of z_crops
         z_crops = self._extract_crops_z(frame_padded_z, npad_z, self.pos_x_ph, self.pos_y_ph,
-                                   self.z_sz_ph,self._design_params.exemplar_sz)
+                                        self.z_sz_ph, self._design_params.exemplar_sz)
         frame_padded_x, npad_x = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
-                                            self.x_sz2_ph, avg_chan)
+                                                 self.x_sz2_ph, avg_chan)
         frame_padded_x = tf.cast(frame_padded_x, tf.float32)
 
         # extract tensor of x_crops (3 scales)
         x_crops = self._extract_crops_x(frame_padded_x, npad_x, self.pos_x_ph, self.pos_y_ph,
-                                   self.x_sz0_ph, self.x_sz1_ph, self.x_sz2_ph,
-                                   self._design_params.search_sz)
+                                        self.x_sz0_ph, self.x_sz1_ph, self.x_sz2_ph,
+                                        self._design_params.search_sz)
 
         # use crops as input of (MatConvnet imported) pre-trained fully-convolutional Siamese net
         weights_path = os.path.join(self._environment_params.root_pretrained,
@@ -328,16 +334,16 @@ class SiamFC:
                 bn_beta = bn_gamma = bn_moving_mean = bn_moving_variance = []
 
             # set up conv "block" with bnorm and activation
-            net_x = self._set_convolutional(net_x, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i], \
-                                bn_beta, bn_gamma, bn_moving_mean, bn_moving_variance, \
-                                filtergroup=_filtergroup_yn[i], batchnorm=_bnorm_yn[i], \
-                                activation=_relu_yn[i], scope='conv'+str(i+1), reuse=False)
+            net_x = self._set_convolutional(net_x, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i],
+                                            bn_beta, bn_gamma, bn_moving_mean, bn_moving_variance,
+                                            filtergroup=_filtergroup_yn[i], batchnorm=_bnorm_yn[i],
+                                            activation=_relu_yn[i], scope='conv'+str(i+1), reuse=False)
 
             # notice reuse=True for Siamese parameters sharing
-            net_z = self._set_convolutional(net_z, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i], \
-                                bn_beta, bn_gamma, bn_moving_mean, bn_moving_variance, \
-                                filtergroup=_filtergroup_yn[i], batchnorm=_bnorm_yn[i], \
-                                activation=_relu_yn[i], scope='conv'+str(i+1), reuse=True)
+            net_z = self._set_convolutional(net_z, conv_W, np.swapaxes(conv_b,0,1), _conv_stride[i],
+                                            bn_beta, bn_gamma, bn_moving_mean, bn_moving_variance,
+                                            filtergroup=_filtergroup_yn[i], batchnorm=_bnorm_yn[i],
+                                            activation=_relu_yn[i], scope='conv'+str(i+1), reuse=True)
 
             # add max pool if required
             if _pool_stride[i]>0:
@@ -412,13 +418,11 @@ class SiamFC:
         params_values_list = [params_values[p] for p in xrange(params_values.size)]
         return params_names_list, params_values_list
 
-
     # find all parameters matching the codename (there should be only one)
-    def _find_params(x, params):
+    def _find_params(self, x, params):
         matching = [s for s in params if x in s]
-        assert len(matching)==1, ('Ambiguous param name found')
+        assert len(matching) == 1, ('Ambiguous param name found')
         return matching
-
 
     def _match_templates(self, net_z, net_x, params_names_list, params_values_list):
         # finalize network
@@ -428,8 +432,6 @@ class SiamFC:
         # z, x are [H, W, B, C]
         Hz, Wz, B, C = tf.unpack(tf.shape(net_z))
         Hx, Wx, Bx, Cx = tf.unpack(tf.shape(net_x))
-        # assert B==Bx, ('Z and X should have same Batch size')
-        # assert C==Cx, ('Z and X should have same Channels number')
         net_z = tf.reshape(net_z, (Hz, Wz, B*C, 1))
         net_x = tf.reshape(net_x, (1, Hx, Wx, B*C))
         net_final = tf.nn.depthwise_conv2d(net_x, net_z, strides=[1,1,1,1], padding='VALID')
@@ -455,3 +457,97 @@ class SiamFC:
 
 
         return net_final
+
+
+class CmtDetector:
+    """Feature based object detector using CMT algorithm as described here:
+
+    Title: Clustering of Static-Adaptive Correspondences for Deformable Object Tracking
+    Authors: Nebehay, Georg and Pflugfelder, Roman
+    Book Title: Computer Vision and Pattern Recognition
+    Publisher: IEEE
+    Year: 2015
+
+    Attributes:
+        location (int, int, int, int): 4-tuple of integers representing the current location of
+            the target in the most recent image as a bounding box in (x, y, w, h) format. Where
+            (x, y) are the image coordinates of the top left corner of the bounding box, and w,
+            h are the width and height of the bounding box respectively.
+    """
+
+    def __init__(self):
+        """Initialize CMT detector"""
+
+        self._cmt = CMT.CMT()
+        self.location = None
+
+    def detect(self, image):
+        """Get bounding box for target in next image.
+
+        Args:
+            image (numpy.ndarray dtype=float32): The image in which to search for the target.
+
+        Returns:
+            Bounding box: A tuple of the form (int, int, int, int) with the following interpretation
+                (x, y, width, height) where x and y are the top left corner of the bounding box.
+        """
+
+        if self.location is None:
+            raise ValueError("CmtDetector.detect was called before it was initialized! CmtDetector.set_target must be "
+                             "called first!")
+
+        self._cmt.process_frame(image)
+        if self._cmt.has_result():
+            self.location = self._to_xywh(self._cmt.tl, self._cmt.br)
+
+        return self.location
+
+    def set_target(self, image, bbox):
+        """Set target by providing a picture of the target and bounding box around target.
+
+        Args:
+            image (numpy.ndarray of dtype float): An image of the target. Presumed to be the first
+                in a video sequence.
+            bbox: (int, int, int, int): Ground truth bounding box around target in (x, y, w, h)
+                format. x and y are image coordinates of the top left corner of the bounding box.
+                w and h are the width and height of the bounding box respectively.
+
+        Returns:
+            None
+        """
+
+        grey_image = self._to_grayscale_image(image)
+        top_left, bottom_right = self._to_tl_br(bbox)
+
+        self._cmt.initialise(grey_image, top_left, bottom_right)
+        self.location = bbox
+
+    def _to_tl_br(self, bbox):
+        """Convert (x, y, w, h) bbox to (x1, y1, x2, y2), where (x1, y1) = top left corner, (x2, y2) = bottom right.
+
+        Args:
+            bbox: (int, int, int, int): Bounding box around target in (x, y, w, h)
+                format. x and y are image coordinates of the top left corner of the bounding box.
+                w and h are the width and height of the bounding box respectively.
+        """
+
+        left, top, width, height = bbox
+        return (left, top), (left + width, top + height)
+
+    def _to_xywh(self, tl, br):
+        """Convert (x1, y1, x2, y2) bbox to (x, y, w, h).
+
+        Args:
+            tl (int, int): The coordinates of the top-left corner of the bounding box.
+            br (int, int): The coordinates of the bottom-right corner of the bounding box.
+        """
+
+        left, top = tl
+        right, bottom = br
+        return left, top, right - left, bottom - top
+
+    def _to_grayscale_image(self, image):
+        """Convert RGB image to grayscale."""
+
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
