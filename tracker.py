@@ -62,3 +62,20 @@ class SimpleTracker:
             for subscriber in self._subscribers:
                 subscriber.update(self)
         logging.info("Tracking finished.")
+
+    def add_subscriber(self, subscriber):
+        """Add a subscriber to be updated during tracking process.
+
+        A subscriber is an object with an update(tracker) method. Where the `tracker`
+        argument is an object of this class. Subscribers are objects that must be updated
+        during the tracking process. Aggregate statistics should be calculated afterward
+        (to minimize cpu / memory load during inference).
+
+        Args:
+            subscriber (subscriber): The subscriber to be added.
+
+        Returns:
+            None
+        """
+
+        self._subscribers.append(subscriber)

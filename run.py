@@ -5,6 +5,7 @@ import tracker
 import image_sequence
 import ast
 import util
+import evaluation
 import numpy as np
 
 STREAM = 'stream'
@@ -60,7 +61,9 @@ def configure_app(cli_args):
     else:
         detection_algo = detector.CmtDetector()
 
-    return tracker.SimpleTracker(sequence, detection_algo, cli_args.target_location)
+    trkr = tracker.SimpleTracker(sequence, detection_algo, cli_args.target_location)
+    trkr.add_subscriber(evaluation.TrackingViewer())
+    return trkr
 
 
 logging.basicConfig(level=logging.INFO)
