@@ -36,7 +36,6 @@ class SiamFC:
             h are the width and height of the bounding box respectively.
     """
 
-
     def __init__(self):
         """Initialize siamese network for object detection"""
 
@@ -47,16 +46,14 @@ class SiamFC:
         self.x_sz1_ph = tf.placeholder(tf.float64)
         self.x_sz2_ph = tf.placeholder(tf.float64)
 
-        self._run_params = self._load_json_file('run.json')
         self._design_params = self._load_json_file('design.json')
         self._environment_params = self._load_json_file('environment.json')
-        self._evaluation_params = self._load_json_file('evaluation.json')
-        self._hyper_params = self._load_json_file('hyperparms.json')
+        self._hyper_params = self._load_json_file('hyperparams.json')
         self.image, self.templates_z, self.scores = self._build_tracking_graph()
-        self.final_score_sz = self._hyper_params.response_up * (self._design_params.score_sz - 1) + 1
+        self.final_score_sz = self._hyper_params['response_up'] * (self._design_params['score_sz'] - 1) + 1
 
-        scale_num = self._hyper_params.scale_num
-        scale_step = self._hyper_params.scale_step
+        scale_num = self._hyper_params['scale_num']
+        scale_step = self._hyper_params['scale_step']
         self.scale_factors = scale_step**np.linspace(-np.ceil(scale_num/2), np.ceil(scale_num/2),
                                                      scale_num)
 
@@ -83,15 +80,15 @@ class SiamFC:
         pos_x, pos_y, target_w, target_h = bbox
 
         self.location = bbox
-        self.context = self._design_params.context*(target_w+target_h)
+        self.context = self._design_params['context']*(target_w+target_h)
         self.z_sz = np.sqrt(np.prod((target_w+self.context)*(target_h+self.context)))
-        self.x_sz = float(self._design_params.search_sz) / self._design_params.exemplar_sz * self.z_sz
+        self.x_sz = float(self._design_params['search_sz']) / self._design_params['exemplar_sz'] * self.z_sz
 
         # thresholds to saturate patches shrinking/growing
-        self.min_z = self._hyper_params.scale_min * self.z_sz
-        self.max_z = self._hyper_params.scale_max * self.z_sz
-        self.min_x = self._hyper_params.scale_min * self.x_sz
-        self.max_x = self._hyper_params.scale_max * self.x_sz
+        self.min_z = self._hyper_params['scale_min'] * self.z_sz
+        self.max_z = self._hyper_params['scale_max'] * self.z_sz
+        self.min_x = self._hyper_params['scale_min'] * self.x_sz
+        self.max_x = self._hyper_params['scale_max'] * self.x_sz
 
         # Extract target features and hold in memory.
         with tf.Session() as sess:
@@ -121,9 +118,9 @@ class SiamFC:
         scaled_search_area = self.x_sz * self.scale_factors
         scaled_target_w = target_w * self.scale_factors
         scaled_target_h = target_h * self.scale_factors
-        scale_lr = self._hyper_params.scale_lr
-        scale_penalty = self._hyper_params.scale_penalty
-        window_influence = self._hyper_params.window_influence
+        scale_lr = self._hyper_params['scale_lr']
+        scale_penalty = self._hyper_params['scale_penalty']
+        window_influence = self._hyper_params['window_influence']
 
         # Run forward inference to get score map for search areas.
         with tf.Session() as sess:
@@ -180,11 +177,11 @@ class SiamFC:
         disp_in_area = p - center
 
         # displacement from the center in instance crop
-        disp_in_xcrop = disp_in_area * float(self._design_params.tot_stride) / \
-                        self._hyper_params.response_up
+        disp_in_xcrop = disp_in_area * float(self._design_params['tot_stride']) / \
+                        self._hyper_params['response_up']
 
         # displacement from the center in instance crop (in frame coordinates)
-        disp_in_frame = disp_in_xcrop *  self.x_sz / self._design_params.search_sz
+        disp_in_frame = disp_in_xcrop *  self.x_sz / self._design_params['search_sz']
 
         # *position* within frame in frame coordinates
         new_pos_y, new_pos_x = pos_y + disp_in_frame[0], pos_x + disp_in_frame[1]
@@ -196,7 +193,7 @@ class SiamFC:
             return json.load(json_file)
 
     def _build_tracking_graph(self):
-        score_map_dim = self._hyper_params.response_up * (self._design_params.score_sz - 1) + 1
+        score_map_dim = self._hyper_params['response_up'] * (self._design_params['score_sz'] - 1) + 1
         image = tf.placeholder(dtype=tf.float32, shape=(None,None,None), name='image')
         frame_sz = tf.shape(image)
         avg_chan = tf.reduce_mean(image, reduction_indices=(0,1), name='avg_chan')
@@ -208,7 +205,7 @@ class SiamFC:
 
         # extract tensor of z_crops
         z_crops = self._extract_crops_z(frame_padded_z, npad_z, self.pos_x_ph, self.pos_y_ph,
-                                        self.z_sz_ph, self._design_params.exemplar_sz)
+                                        self.z_sz_ph, self._design_params['exemplar_sz'])
         frame_padded_x, npad_x = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
                                                  self.x_sz2_ph, avg_chan)
         frame_padded_x = tf.cast(frame_padded_x, tf.float32)
@@ -216,11 +213,11 @@ class SiamFC:
         # extract tensor of x_crops (3 scales)
         x_crops = self._extract_crops_x(frame_padded_x, npad_x, self.pos_x_ph, self.pos_y_ph,
                                         self.x_sz0_ph, self.x_sz1_ph, self.x_sz2_ph,
-                                        self._design_params.search_sz)
+                                        self._design_params['search_sz'])
 
         # use crops as input of (MatConvnet imported) pre-trained fully-convolutional Siamese net
-        weights_path = os.path.join(self._environment_params.root_pretrained,
-                                    self._design_params.net)
+        weights_path = os.path.join(self._environment_params['root_pretrained'],
+                                    self._design_params['net'])
         template_z, templates_x, p_names_list, p_val_list = \
             self._create_siamese(weights_path, x_crops, z_crops)
         template_z = tf.squeeze(template_z)
