@@ -28,9 +28,21 @@ class SimpleTracker:
         self._sequence = sequence
         self._detector = detector
         self._subscribers = []
-        self.current_image = next(self._sequence)
-        self.current_location = bbox or util.to_xywh(util.get_rect(self.current_image))
-        self.locations = collections.OrderedDict({self.current_image: self.current_location})
+        self.current_id, self.current_image = next(self._sequence)
+        self.current_location = bbox or self._prompt_for_target()
+        self.locations = collections.OrderedDict({self.current_id: (self.current_image, self.current_location)})
+
+    def _prompt_for_target(self):
+        """Prompt user for target bounding box.
+
+        Launches an image viewer on which the user draws a bounding box.
+
+        Returns:
+            (int, int, int, int): bbox in (x, y, w, h) format.
+        """
+
+        tl, br = util.get_rect(self.current_image)
+        return util.to_xywh(tl, br)
 
     def track(self):
         """Generate bounding boxes for each image in sequence."""
@@ -40,9 +52,10 @@ class SimpleTracker:
         logging.info("Detector initialized.")
 
         logging.info("Beginning tracking.")
-        for image in self._sequence:
+        for image_id, image in self._sequence:
             location = self._detector.detect(image)
-            self.locations[image] = location
+            self.locations[image_id] = (image, location)
+            self.current_id = image_id
             self.current_image = image
             self.current_location = location
 

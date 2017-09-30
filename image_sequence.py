@@ -1,5 +1,5 @@
 import os
-import scipy.misc
+import cv2
 
 
 class DirectorySequence:
@@ -25,7 +25,8 @@ class DirectorySequence:
         if ordering is None:
             ordering = self._numerical_value
 
-        self._sequence = sorted(image_files, key=ordering)
+        self._sequence = map(lambda filename: os.path.join(sequence_directory, filename),
+                             sorted(image_files, key=ordering))
         self._index = 0
         self._size = len(self._sequence)
 
@@ -38,9 +39,10 @@ class DirectorySequence:
 
     def next(self):
         if self._index < self._size:
-            img = scipy.misc.imread(self._sequence[self._index])
+            file_path = self._sequence[self._index]
+            img = cv2.imread(file_path)
             self._index += 1
-            return img
+            return file_path, img
         else:
             self._index = 0
             raise StopIteration()

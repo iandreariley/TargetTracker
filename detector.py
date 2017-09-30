@@ -497,8 +497,8 @@ class CmtDetector:
             raise ValueError("CmtDetector.detect was called before it was initialized! CmtDetector.set_target must be "
                              "called first!")
 
-        self._cmt.process_frame(image)
-        if self._cmt.has_result():
+        self._cmt.process_frame(self._to_grayscale_image(image))
+        if self._cmt.has_result:
             self.location = util.to_xywh(self._cmt.tl, self._cmt.br)
 
         return self.location
@@ -526,5 +526,5 @@ class CmtDetector:
     def _to_grayscale_image(self, image):
         """Convert RGB image to grayscale."""
 
-        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
