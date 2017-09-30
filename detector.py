@@ -46,9 +46,10 @@ class SiamFC:
         self.x_sz1_ph = tf.placeholder(tf.float64)
         self.x_sz2_ph = tf.placeholder(tf.float64)
 
-        self._design_params = self._load_json_file('design.json')
-        self._environment_params = self._load_json_file('environment.json')
-        self._hyper_params = self._load_json_file('hyperparams.json')
+        self._design_params = self._load_json_file('siamfc-params/design.json')
+        self._environment_params = self._load_json_file('siamfc-params/environment.json')
+        self._hyper_params = self._load_json_file('siamfc-params/hyperparams.json')
+        self._num_layers = self._design_params['num_layers']
         self.image, self.templates_z, self.scores = self._build_tracking_graph()
         self.final_score_sz = self._hyper_params['response_up'] * (self._design_params['score_sz'] - 1) + 1
 
@@ -91,12 +92,12 @@ class SiamFC:
         self.max_x = self._hyper_params['scale_max'] * self.x_sz
 
         # Extract target features and hold in memory.
-        with tf.Session() as sess:
-            tf.initialize_all_variables().run()
-            self.template = np.squeeze(sess.run(self.templates_z, feed_dict={self.pos_x_ph: pos_x,
-                                                                        self.pos_y_ph: pos_y,
-                                                                        self.z_sz_ph: self.z_sz,
-                                                                        image: image}))
+        self._session = tf.Session()
+        tf.initialize_all_variables().run(session=self._session)
+        self.template = np.squeeze(self._session.run(self.templates_z, feed_dict={self.pos_x_ph: pos_x,
+                                                                    self.pos_y_ph: pos_y,
+                                                                    self.z_sz_ph: self.z_sz,
+                                                                    self.image: image}))
 
     def detect(self, image):
         """Get bounding box for target in next image.
@@ -123,48 +124,47 @@ class SiamFC:
         window_influence = self._hyper_params['window_influence']
 
         # Run forward inference to get score map for search areas.
-        with tf.Session() as sess:
-            run_opts = {}  # TODO: Run opts obviously unnecessary. Here to make code work. Eliminate.
-            score_maps_by_scale = sess.run(
-                [self.scores],
-                feed_dict={
-                    self.pos_x_ph: pos_x,
-                    self.pos_y_ph: pos_y,
-                    self.x_sz0_ph: scaled_search_area[0],
-                    self.x_sz1_ph: scaled_search_area[1],
-                    self.x_sz2_ph: scaled_search_area[2],
-                    self.templates_z: self.template,
-                    image: image}, **run_opts)
-            score_maps_by_scale = np.squeeze(score_maps_by_scale)
+        run_opts = {}  # TODO: Run opts obviously unnecessary. Here to make code work. Eliminate.
+        score_maps_by_scale = self._session.run(
+            [self.scores],
+            feed_dict={
+                self.pos_x_ph: pos_x,
+                self.pos_y_ph: pos_y,
+                self.x_sz0_ph: scaled_search_area[0],
+                self.x_sz1_ph: scaled_search_area[1],
+                self.x_sz2_ph: scaled_search_area[2],
+                self.templates_z: self.template,
+                self.image: image}, **run_opts)
+        score_maps_by_scale = np.squeeze(score_maps_by_scale)
 
-            # penalize change of scale
-            score_maps_by_scale[0,:,:] = scale_penalty*score_maps_by_scale[0,:,:]
-            score_maps_by_scale[2,:,:] = scale_penalty*score_maps_by_scale[2,:,:]
+        # penalize change of scale
+        score_maps_by_scale[0,:,:] = scale_penalty*score_maps_by_scale[0,:,:]
+        score_maps_by_scale[2,:,:] = scale_penalty*score_maps_by_scale[2,:,:]
 
-            # find scale with highest peak (after penalty)
-            best_score_map_id = np.argmax(np.amax(score_maps_by_scale, axis=(1, 2)))
+        # find scale with highest peak (after penalty)
+        best_score_map_id = np.argmax(np.amax(score_maps_by_scale, axis=(1, 2)))
 
-            # update scaled sizes
-            self.x_sz = (1-scale_lr) * self.x_sz + scale_lr * scaled_search_area[best_score_map_id]
-            target_w = (1-scale_lr) * target_w + scale_lr * scaled_target_w[best_score_map_id]
-            target_h = (1-scale_lr) * target_h + scale_lr * scaled_target_h[best_score_map_id]
+        # update scaled sizes
+        self.x_sz = (1-scale_lr) * self.x_sz + scale_lr * scaled_search_area[best_score_map_id]
+        target_w = (1-scale_lr) * target_w + scale_lr * scaled_target_w[best_score_map_id]
+        target_h = (1-scale_lr) * target_h + scale_lr * scaled_target_h[best_score_map_id]
 
-            # select response with new_scale_id
-            best_score_map = score_maps_by_scale[best_score_map_id, :, :]
+        # select response with new_scale_id
+        best_score_map = score_maps_by_scale[best_score_map_id, :, :]
 
-            # normalize scores. TODO: Not exactly sure why we're doing this.
-            best_score_map = best_score_map - np.min(best_score_map)
-            best_score_map = best_score_map / np.sum(best_score_map)
+        # normalize scores. TODO: Not exactly sure why we're doing this.
+        best_score_map = best_score_map - np.min(best_score_map)
+        best_score_map = best_score_map / np.sum(best_score_map)
 
-            # apply displacement penalty
-            best_score_map = (1 - window_influence) * best_score_map + window_influence * self.penalty
-            pos_x, pos_y = self._update_target_position(pos_x, pos_y, best_score_map)
+        # apply displacement penalty
+        best_score_map = (1 - window_influence) * best_score_map + window_influence * self.penalty
+        pos_x, pos_y = self._update_target_position(pos_x, pos_y, best_score_map)
 
-            # convert <cx,cy,w,h> to <x,y,w,h> and save output
-            self.location = pos_x-target_w / 2, pos_y-target_h / 2, target_w, target_h
+        # convert <cx,cy,w,h> to <x,y,w,h> and save output
+        self.location = pos_x-target_w / 2, pos_y-target_h / 2, target_w, target_h
 
-            # update template patch size
-            self.z_sz = (1-scale_lr) * self.z_sz + scale_lr * scaled_exemplar[best_score_map_id]
+        # update template patch size
+        self.z_sz = (1-scale_lr) * self.z_sz + scale_lr * scaled_exemplar[best_score_map_id]
 
         return self.location
 

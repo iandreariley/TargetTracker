@@ -29,7 +29,7 @@ def get_cli_args():
     parser.add_argument("--sequence_type", help="The type of image sequence (stream or directory).",
                         choices=[STREAM, DIRECTORY], default=DIRECTORY)
     parser.add_argument("--detection_algo", help="The algorithm used to detect the target ('nn' or 'cmt').",
-                        choices=[NEURAL_NETWORK, FEATURE_BASED], default=FEATURE_BASED)
+                        choices=[NEURAL_NETWORK, FEATURE_BASED], default=NEURAL_NETWORK)
     parser.add_argument("--image_format", help="The file extension fort the image format used. Only applicable if the "
                                              "sequence drawn from image files. Ignored otherwise.", default=JPEG)
     parser.add_argument("--target_location", help="Bounding box giving location of target in first frame.", default="")
