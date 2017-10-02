@@ -78,7 +78,9 @@ class SiamFC:
             None
         """
 
-        pos_x, pos_y, target_w, target_h = bbox
+        left, top, target_w, target_h = bbox
+        pos_x = left + target_w / 2
+        pos_y = top + target_h / 2
 
         self.location = bbox
         self.context = self._design_params['context']*(target_w+target_h)
