@@ -1,4 +1,5 @@
 import cv2
+import timeit
 from numpy import math, hstack
 
 import numpy as np
@@ -78,6 +79,12 @@ def get_rect(im, title='get_rect'):
 		max(mouse_params['tl'][1], mouse_params['br'][1]))
 
 	return (tl, br)
+
+def time_execution(callable):
+	start_time = timeit.default_timer()
+	results = callable()
+	elapsed = timeit.default_timer - start_time
+	return results, elapsed
 
 def in_rect(keypoints, tl, br):
 	if type(keypoints) is list:
@@ -256,3 +263,72 @@ def _poly(region, center):
     else:
         return cx-w/2, cy-h/2, w, h
 
+def compile_results(ground_truth_regions, predicted_bboxes, dist_threshold):
+	l = np.size(predicted_bboxes, 0)
+	ground_truth_bboxes = np.zeros((l, 4))
+	new_distances = np.zeros(l)
+	new_ious = np.zeros(l)
+	n_thresholds = 50
+	precisions_ths = np.zeros(n_thresholds)
+
+	# Compute IoUs for each frame.
+	for i in range(l):
+		ground_truth_bboxes[i, :] = region_to_bbox(ground_truth_regions[i, :], center=False)
+		new_distances[i] = _compute_distance(predicted_bboxes[i, :], ground_truth_bboxes[i, :])
+		new_ious[i] = _compute_iou(predicted_bboxes[i, :], ground_truth_bboxes[i, :])
+
+	# what's the percentage of frame in which center displacement is inferior to given threshold? (OTB metric)
+	precision = sum(new_distances < dist_threshold)/np.size(new_distances) * 100
+
+	# find above result for many thresholds, then report the AUC
+	thresholds = np.linspace(0, 25, n_thresholds+1)
+	thresholds = thresholds[-n_thresholds:]
+	# reverse it so that higher values of precision goes at the beginning
+	thresholds = thresholds[::-1]
+	for i in range(n_thresholds):
+		precisions_ths[i] = sum(new_distances < thresholds[i])/np.size(new_distances)
+
+	# integrate over the thresholds
+	precision_auc = np.trapz(precisions_ths)
+
+	# per frame averaged intersection over union (OTB metric)
+	iou = np.mean(new_ious) * 100
+
+	return l, precision, precision_auc, iou
+
+def _compute_distance(boxA, boxB):
+	a = np.array((boxA[0]+boxA[2]/2, boxA[1]+boxA[3]/2))
+	b = np.array((boxB[0]+boxB[2]/2, boxB[1]+boxB[3]/2))
+	dist = np.linalg.norm(a - b)
+
+	assert dist >= 0
+	assert dist != float('Inf')
+
+	return dist
+
+
+def _compute_iou(boxA, boxB):
+	# determine the (x, y)-coordinates of the intersection rectangle
+	xA = max(boxA[0], boxB[0])
+	yA = max(boxA[1], boxB[1])
+	xB = min(boxA[0] + boxA[2], boxB[0] + boxB[2])
+	yB = min(boxA[1] + boxA[3], boxB[1] + boxB[3])
+
+	if xA < xB and yA < yB:
+		# compute the area of intersection rectangle
+		interArea = (xB - xA) * (yB - yA)
+		# compute the area of both the prediction and ground-truth
+		# rectangles
+		boxAArea = boxA[2] * boxA[3]
+		boxBArea = boxB[2] * boxB[3]
+		# compute the intersection over union by taking the intersection
+		# area and dividing it by the sum of prediction + ground-truth
+		# areas - the intersection area
+		iou = interArea / float(boxAArea + boxBArea - interArea)
+	else:
+		iou = 0
+
+	assert iou >= 0
+	assert iou <= 1.01
+
+	return iou
