@@ -30,7 +30,7 @@ class SimpleTracker:
         self._subscribers = []
         self.current_id, self.current_image = next(self._sequence)
         self.current_location = bbox or self._prompt_for_target()
-        self.locations = collections.OrderedDict({self.current_id: (self.current_image, self.current_location)})
+        self.locations = collections.OrderedDict({self.current_id: self.current_location})
 
     def _prompt_for_target(self):
         """Prompt user for target bounding box.
@@ -54,7 +54,7 @@ class SimpleTracker:
         logging.info("Beginning tracking.")
         for image_id, image in self._sequence:
             location = self._detector.detect(image)
-            self.locations[image_id] = (image, location)
+            self.locations[image_id] = location
             self.current_id = image_id
             self.current_image = image
             self.current_location = location
