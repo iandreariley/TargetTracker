@@ -120,7 +120,7 @@ class FpsMetric:
 
     def _compute_fps(self, results):
         n_frames = len(results.predictions)
-        self._fps = results.elapsed_time / n_frames
+        self._fps = n_frames / results.elapsed_time
 
 
 class TorrMetrics:
