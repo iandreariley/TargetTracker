@@ -7,8 +7,10 @@ import evaluation
 import os
 import csv
 import util
-import timeit
+import json
+import time
 import collections
+import numpy as np
 
 STREAM = 'stream'
 DIRECTORY = 'directory'
@@ -75,7 +77,8 @@ def configure_tracker(sequence_type, sequence_source, target_location, detection
 
 
 def run_single_session(args):
-    target_tracker = configure_tracker(args.sequence_type, args.sequence_source, args.target_location, args.detection_algo)
+    target_tracker = configure_tracker(args.sequence_type, args.sequence_source, args.target_location,
+                                       args.detection_algo)
     target_tracker.track()
     return target_tracker
 
@@ -83,32 +86,84 @@ def run_single_session(args):
 def load_groundtruth(directory):
     with open(os.path.join(directory, "groundtruth.txt")) as bbox_csv:
         reader = csv.reader(bbox_csv)
-        ground_truth_bboxes = map(lambda region: util.region_to_bbox(map(float(region))), reader)
+        ground_truth_bboxes = map(lambda region: util.region_to_bbox(map(float, region)), reader)
     return ground_truth_bboxes
 
 
+def get_dictionary_entry(dicts, entry_key):
+    """For a list of dictionaries, return the value paired with a given key for each dictionary
+
+    Args:
+        dicts (iterable<dicts>): An iterable of dictionaries. All dictionaries must contain an entry for `entry_key`.
+        entry_key (hashable): The key to search in all dictionaries in `dicts`.
+
+    Returns:
+        numpy.ndarray of the values matching `entry_key` for each dictionary in `dicts`.
+
+    Raises:
+        KeyError if any dictionary in `dicts` does not contain `entry_key`.
+    """
+    return np.array(map(lambda d: d[entry_key], dicts))
+
+
+def weighted_average_metric(dicts, metric, weights):
+    """Weighted average of metric in a set of metric dictionaries."""
+    return np.average(get_dictionary_entry(dicts, metric), weights=weights)
+
+
 def aggregate_results(results):
-    pass
+    metrics_dicts = map(lambda result: result.get_metrics(), results)
+    lengths = get_dictionary_entry(metrics_dicts, "session_length")
+
+    return weighted_average_metric(metrics_dicts, "precision", lengths), \
+           weighted_average_metric(metrics_dicts, "precision_auc", lengths), \
+           weighted_average_metric(metrics_dicts, "iou", lengths), \
+           weighted_average_metric(metrics_dicts, "fps", lengths), \
+           np.sum(lengths)
+
+
+def load_params(path):
+    with open(path) as json_file:
+        params = json.load(json_file)
+    return params
 
 
 def run_benchmark(args):
+    """Run and evaluate algorithm on benchmark dataset.
+
+    Args:
+        args (namespace): CLI arguments to program
+
+    Returns:
+        five-tuple of aggregate metrics, distance_threshold, and number of videos in benchmark.
+    """
     benchmark_sequences = os.listdir(args.sequence_source)
     benchmark_results = collections.OrderedDict()
+    distance_threshold = load_params(os.path.join('parameters', 'evaluation.json'))['dist_threshold']
     for sequence in benchmark_sequences:
         sequence_path = os.path.join(args.sequence_source, sequence)
         ground_truth = load_groundtruth(sequence_path)
         initial_location = ground_truth[0]
         target_tracker = configure_tracker(args.sequence_type, sequence_path, initial_location, args.detection_algo)
 
-        start_time = timeit.default_timer()
+        start_time = time.time()
         target_tracker.track()
-        elapsed = timeit.default_timer - start_time
+        elapsed = time.time() - start_time
 
         results = evaluation.TrackingResults(target_tracker.locations, initial_location, elapsed, ground_truth[1:])
-        results.add_metric(evaluation.TorrMetrics)
-        results.add_metric(evaluation.FpsMetric)
+        results.add_metric(evaluation.TorrMetrics(distance_threshold))
+        results.add_metric(evaluation.FpsMetric())
         benchmark_results[sequence] = results
-    return aggregate_results(benchmark_results)
+    return aggregate_results(benchmark_results), distance_threshold, len(benchmark_sequences)
+
+
+def print_metrics(metrics, dist_threshold, nv):
+    precision, auc, iou, fps, total_frames = metrics
+    print '-- Overall stats (averaged per frame) on ' + str(nv) + ' videos (' + str(total_frames) + ' frames) --'
+    print ' -- Precision ' + "(%d px)" % dist_threshold + ': ' + "%.2f" % precision + \
+          ' -- Precisions AUC: ' + "%.2f" % auc + \
+          ' -- IOU: ' + "%.2f" % iou + \
+          ' -- Speed: ' + "%.2f" % fps + ' --'
 
 
 def main():
@@ -116,7 +171,7 @@ def main():
     args = get_cli_args()
 
     if args.benchmark:
-        run_benchmark(args)
+        print_metrics(run_benchmark(args), 20, 1000)
     else:
         run_single_session(args)
 
