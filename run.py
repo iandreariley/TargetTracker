@@ -38,6 +38,7 @@ def get_cli_args():
     parser.add_argument("--image_format", help="The file extension fort the image format used. Only applicable if the "
                                              "sequence drawn from image files. Ignored otherwise.", default=JPEG)
     parser.add_argument("--target_location", help="Bounding box giving location of target in first frame.", default="")
+    parser.add_argument("--evaluate", action="store_true", help="Flag. Whether to run against ground truth.")
     parser.add_argument("--benchmark", action="store_true", help="Flag. If set, sequence_source is taken to be a "
                                                                  "directory with a number of sequences over which the "
                                                                  "tracking algorithm is meant to be run.")
@@ -77,10 +78,25 @@ def configure_tracker(sequence_type, sequence_source, target_location, detection
 
 
 def run_single_session(args):
-    target_tracker = configure_tracker(args.sequence_type, args.sequence_source, args.target_location,
-                                       args.detection_algo)
-    target_tracker.track()
-    return target_tracker
+    if args.evaluate:
+        ground_truth = load_groundtruth(args.sequence_source)
+        initial_location = ground_truth[0]
+        target_tracker = configure_tracker(args.sequence_type, args.sequence_source, args.target_location,
+                                           args.detection_algo)
+        start_time = time.time()
+        target_tracker.track()
+        elapsed = time.time() - start_time
+
+        results = evaluation.TrackingResults(target_tracker.locations, initial_location, elapsed, ground_truth[1:])
+        distance_threshold = load_params(os.path.join('parameters', 'evaluation.json'))['dist_threshold']
+        results.add_metric(evaluation.TorrMetrics(distance_threshold))
+        results.add_metric(evaluation.FpsMetric())
+        return [results], distance_threshold, 1
+    else:
+        target_tracker = configure_tracker(args.sequence_type, args.sequence_source, args.target_location,
+                                           args.detection_algo)
+        target_tracker.track()
+        return target_tracker
 
 
 def load_groundtruth(directory):
