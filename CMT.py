@@ -8,6 +8,7 @@ import time
 
 import numpy as np
 import util
+import logging
 
 
 class CMT(object):
@@ -34,6 +35,7 @@ class CMT(object):
 		keypoints_cv = self.detector.detect(im_gray0)
 
 		# Remember keypoints that are in the rectangle as selected keypoints
+                logging.info("Top left: {0}\nBottom right: {1}".format(tl, br))
 		ind = util.in_rect(keypoints_cv, tl, br)
 		selected_keypoints_cv = list(itertools.compress(keypoints_cv, ind))
 		selected_keypoints_cv, self.selected_features = self.descriptor.compute(im_gray0, selected_keypoints_cv)
@@ -112,7 +114,7 @@ class CMT(object):
 		if keypoints.size > 1:
 
 			# Extract the keypoint classes
-			keypoint_classes = keypoints[:, 2].squeeze().astype(np.int) 
+			keypoint_classes = keypoints[:, 2].squeeze().astype(np.int)
 
 			# Retain singular dimension
 			if keypoint_classes.size == 1:
@@ -124,13 +126,13 @@ class CMT(object):
 			keypoint_classes = keypoint_classes[ind_sort]
 
 			# Get all combinations of keypoints
-			all_combs = array([val for val in itertools.product(range(keypoints.shape[0]), repeat=2)])	
+			all_combs = array([val for val in itertools.product(range(keypoints.shape[0]), repeat=2)])
 
 			# But exclude comparison with itself
 			all_combs = all_combs[all_combs[:, 0] != all_combs[:, 1], :]
 
 			# Measure distance between allcombs[0] and allcombs[1]
-			ind1 = all_combs[:, 0] 
+			ind1 = all_combs[:, 0]
 			ind2 = all_combs[:, 1]
 
 			class_ind1 = keypoint_classes[ind1] - 1
@@ -161,7 +163,7 @@ class CMT(object):
 
 				v = pts_allcombs1 - pts_allcombs0
 				angles = np.arctan2(v[:, 1], v[:, 0])
-				
+
 				original_angles = self.angles[class_ind1, class_ind2]
 
 				angle_diffs = angles - original_angles
@@ -196,7 +198,7 @@ class CMT(object):
 
 				# Count votes for each cluster
 				cnt = np.bincount(T)  # Dummy 0 label remains
-				
+
 				# Get largest class
 				Cmax = argmax(cnt)
 
@@ -224,11 +226,11 @@ class CMT(object):
 		(center, scale_estimate, rotation_estimate, tracked_keypoints) = self.estimate(tracked_keypoints)
 
 		# Detect keypoints, compute descriptors
-		keypoints_cv = self.detector.detect(im_gray) 
+		keypoints_cv = self.detector.detect(im_gray)
 		keypoints_cv, features = self.descriptor.compute(im_gray, keypoints_cv)
 
 		# Create list of active keypoints
-		active_keypoints = zeros((0, 3)) 
+		active_keypoints = zeros((0, 3))
 
 		# Get the best two matches for each feature
 		matches_all = self.matcher.knnMatch(features, self.features_database, 2)
@@ -277,11 +279,11 @@ class CMT(object):
 				if not any(isnan(center)):
 
 					# Compute distances to initial descriptors
-					matches = selected_matches_all[i]				
+					matches = selected_matches_all[i]
 					distances = np.array([m.distance for m in matches])
 					# Re-order the distances based on indexing
 					idxs = np.argsort(np.array([m.trainIdx for m in matches]))
-					distances = distances[idxs]					
+					distances = distances[idxs]
 
 					# Convert distances to confidences
 					confidences = 1 - distances / self.DESC_LENGTH
