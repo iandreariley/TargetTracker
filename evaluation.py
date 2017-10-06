@@ -2,6 +2,7 @@ import cv2
 import util
 import numpy as np
 import logging
+import pickle
 
 
 class TrackingViewer:
@@ -97,6 +98,22 @@ class TrackingResults:
                 metrics_results[name] = value
 
         return metrics_results
+
+    def save(self, path):
+        """Serialize this object to file.
+
+        Args:
+            path (str): file path to save to.
+
+        Returns:
+            None
+
+        Raises:
+            FileNotFoundError if the path does not reference a valid file.
+        """
+
+        with open(path, 'rb') as pickle_file:
+            pickle.dump(self, pickle_file)
 
 
 class FpsMetric:

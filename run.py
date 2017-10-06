@@ -42,6 +42,8 @@ def get_cli_args():
     parser.add_argument("--benchmark", action="store_true", help="Flag. If set, sequence_source is taken to be a "
                                                                  "directory with a number of sequences over which the "
                                                                  "tracking algorithm is meant to be run.")
+    parser.add_argument("--save_dir", help="directory in which to save output", default="")
+    parser.add_argument("--save_name", help="filename for results output file.", default=".")
     return parser.parse_args()
 
 
@@ -189,6 +191,11 @@ def print_metrics(metrics, dist_threshold, nv):
           ' -- Speed: ' + "%.2f" % fps + ' --'
 
 
+def save_results(args, results):
+    if args.save_name:
+        results.save(os.path.join(args.save_dir, args.save_name))
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     args = get_cli_args()
@@ -196,10 +203,12 @@ def main():
     if args.benchmark:
         logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
         benchmark_results = run_benchmark(args)
+        save_results(benchmark_results)
         print_metrics(*benchmark_results)
     else:
         logging.info("Tracking object on source {0}".format(args.sequence_source))
         run_results = run_single_session(args)
+        save_results(args, run_results)
         print_metrics(*run_results)
 
 
