@@ -151,7 +151,9 @@ class TorrMetrics:
         return self._metrics
 
     def _compute_metrics(self, results):
-        length = np.size(results.predictions, 0)
+        predictions = np.array(results.predictions.values())
+        ground_truth = np.array(results.ground_truth)
+        length = len(predictions)
         new_distances = np.zeros(length)
         new_ious = np.zeros(length)
         n_thresholds = 50
@@ -159,8 +161,8 @@ class TorrMetrics:
 
         # Compute IoUs for each frame.
         for i in range(length):
-            new_distances[i] = self._compute_distance(results.predictions[i, :], results.ground_truth[i, :])
-            new_ious[i] = self._compute_iou(results.predictions[i, :], results.ground_truth[i, :])
+            new_distances[i] = self._compute_distance(predictions[i, :], ground_truth[i, :])
+            new_ious[i] = self._compute_iou(predictions[i, :], ground_truth[i, :])
 
         # what's the percentage of frame in which center displacement is inferior to given threshold? (OTB metric)
         precision = sum(new_distances < self._distance_threshold)/np.size(new_distances) * 100
@@ -179,7 +181,7 @@ class TorrMetrics:
         # per frame averaged intersection over union (OTB metric)
         iou = np.mean(new_ious) * 100
 
-        return zip(self.METRICS, [length, precision, precision_auc, iou])
+        self._metrics = zip(self.METRICS, [length, precision, precision_auc, iou])
 
     def _compute_distance(self, boxA, boxB):
         a = np.array((boxA[0]+boxA[2]/2, boxA[1]+boxA[3]/2))
