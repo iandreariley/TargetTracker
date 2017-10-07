@@ -44,6 +44,7 @@ def get_cli_args():
                                                                  "tracking algorithm is meant to be run.")
     parser.add_argument("--save_dir", help="directory in which to save output", default="")
     parser.add_argument("--save_name", help="filename for results output file.", default=".")
+    parser.add_argument("--db", action="store_true", help="Set for debugging output.")
     return parser.parse_args()
 
 
@@ -199,8 +200,9 @@ def save_results(args, results):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
     args = get_cli_args()
+    log_level = logging.DEBUG if args.db else logging.INFO
+    logging.basicConfig(level=log_level)
 
     if args.benchmark:
         logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
