@@ -182,7 +182,7 @@ class TorrMetrics:
             new_ious[i] = self._compute_iou(predictions[i, :], ground_truth[i, :])
 
         # what's the percentage of frame in which center displacement is inferior to given threshold? (OTB metric)
-        precision = sum(new_distances < self._distance_threshold)/np.size(new_distances) * 100
+        precision = float(sum(new_distances < self._distance_threshold))/np.size(new_distances) * 100
 
         # find above result for many thresholds, then report the AUC
         thresholds = np.linspace(0, 25, n_thresholds+1)
