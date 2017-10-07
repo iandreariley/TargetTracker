@@ -27,7 +27,7 @@ class TrackingViewer:
         Returns:
             None
         """
-        left, top, bottom, right = BboxFormats.convert_bbox_format(tracker.current_location,
+        left, top, right, bottom = BboxFormats.convert_bbox_format(tracker.current_location,
                                                                    tracker.get_location_format(), BboxFormats.TLBR)
         tl = tuple(map(int, (left, top)))
         br = tuple(map(int, (right, bottom)))
