@@ -10,7 +10,12 @@ class TrackingViewer:
 
     BBOX_COLOR = (255, 0, 0)
 
-    def __init__(self, title="view"):
+    def __init__(self, title="view", bbox_format=None):
+        """Settings for viewer
+
+        Args:
+            title (str): Title for the viewing window.
+        """
         self._title = title
 
     def update(self, tracker):
@@ -47,6 +52,14 @@ class TrackingViewer:
         return image
 
 
+class BboxFormats:
+    """Just an enum of formats used for bounding boxes"""
+    CCWH = 1
+    XYWH = 2
+    TLBR = 3
+    FORMATS = [CCWH, XYWH, TLBR]
+
+
 class TrackingResults:
     """Results of a tracking session.
 
@@ -58,7 +71,7 @@ class TrackingResults:
         elapsed_time (int): Time elapsed during tracking session.
     """
 
-    def __init__(self, predictions, first_bbox=None, elapsed_time=None, ground_truth=None):
+    def __init__(self, predictions, first_bbox=None, elapsed_time=None, ground_truth=None, pred_format=BboxFormats.CCWH, gt_format.BboxFormats.CCWH):
         """Stores arguments as results.
 
         Args:
@@ -69,7 +82,12 @@ class TrackingResults:
                 (int, int, int, int) it is assumed to be a bounding box in (x, y, w, h) format, where (x, y) is the
                 top left corner of the box. If each element is an 8-tuple of ints, it is assumed to be of the form
                 (x1, y1, x2, y2 ... x4, y4) where each (xn, yn) is a corner of a quadrangle defining the region.
+            pred_format (BboxFormat): Format of predicted bounding boxes. Defaults to (center_x, center_y, width, height).
+            gt_format (BboxFormat): Format of ground-truth bounding boxes. Defaults to (center_x, center_y, width, height)
         """
+
+        assert pred_format in BboxFormats.FORMATS, "Argument to 'pred_format' must be a BboxFormat constant"
+        assert gt_format in BboxFormats.FORMATS, "Argument to 'gt_format' must be a BboxFormat constant"
 
         self.metrics = []
         self.predictions = predictions
@@ -190,7 +208,7 @@ class TorrMetrics:
         # reverse it so that higher values of precision goes at the beginning
         thresholds = thresholds[::-1]
         for i in range(n_thresholds):
-            precisions_ths[i] = sum(new_distances < thresholds[i])/np.size(new_distances)
+            precisions_ths[i] = float(sum(new_distances < thresholds[i]))/np.size(new_distances)
 
         # integrate over the thresholds
         precision_auc = np.trapz(precisions_ths)
