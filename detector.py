@@ -7,7 +7,7 @@ import json
 import os
 import CMT
 import util
-
+import evaluation
 
 # TODO: Not a good place for these variables, move elsewhere.
 _conv_stride = np.array([2, 1, 1, 1, 1])
@@ -64,23 +64,25 @@ class SiamFC:
         self.penalty = penalty / np.sum(penalty)
         self.location = None
 
+    def get_bbox_format(self):
+        """Returns format used by this detector. Part of Detector implementation."""
+        return evaluation.BboxFormats.CCWH
+
     def set_target(self, image, bbox):
         """Set target by providing a picture of the target and bounding box around target.
 
         Args:
             image (numpy.ndarray of dtype float): An image of the target. Presumed to be the first
                 in a video sequence.
-            bbox: (int, int, int, int): Ground truth bounding box around target in (x, y, w, h)
-                format. x and y are image coordinates of the top left corner of the bounding box.
+            bbox: (int, int, int, int): Ground truth bounding box around target in (cx, cy, w, h)
+                format. cx and cy are image coordinates of the center of the bounding box, and
                 w and h are the width and height of the bounding box respectively.
 
         Returns:
             None
         """
 
-        left, top, target_w, target_h = bbox
-        pos_x = left + target_w / 2
-        pos_y = top + target_h / 2
+        pos_x, pos_y, target_w, target_h = bbox
 
         self.location = bbox
         self.context = self._design_params['context']*(target_w+target_h)
@@ -498,9 +500,13 @@ class CmtDetector:
 
         self._cmt.process_frame(self._to_grayscale_image(image))
         if self._cmt.has_result:
-            self.location = util.to_xywh(self._cmt.tl, self._cmt.br)
+            self.location = self._cmt.tl + self._cmt.br
 
         return self.location
+
+    def get_bbox_format(self):
+        """Returns format used by this detector. Part of Detector implementation."""
+        return evaluation.BboxFormats.TLBR
 
     def set_target(self, image, bbox):
         """Set target by providing a picture of the target and bounding box around target.
@@ -508,7 +514,7 @@ class CmtDetector:
         Args:
             image (numpy.ndarray of dtype float): An image of the target. Presumed to be the first
                 in a video sequence.
-            bbox: (int, int, int, int): Ground truth bounding box around target in (x, y, w, h)
+            bbox: (int, int, int, int): Ground truth bounding box around target in (cx, cy, w, h)
                 format. x and y are image coordinates of the top left corner of the bounding box.
                 w and h are the width and height of the bounding box respectively.
 
@@ -517,10 +523,12 @@ class CmtDetector:
         """
 
         grey_image = self._to_grayscale_image(image)
-        top_left, bottom_right = util.to_tl_br(bbox)
+        cx, cy, w, h = bbox
+        top_left = cx - w / 2, cy - h / 2
+        bottom_right = top_left[0] + w, top_left[1] + h
 
         self._cmt.initialise(grey_image, top_left, bottom_right)
-        self.location = bbox
+        self.location = top_left + bottom_right
 
     def _to_grayscale_image(self, image):
         """Convert RGB image to grayscale."""
