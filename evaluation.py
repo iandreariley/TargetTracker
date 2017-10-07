@@ -90,8 +90,9 @@ class BboxFormats:
             return left, top, right, bottom
         else:
             left, top, right, bottom = bbox
-            return left, top, right - left, bottom - top
-
+            w = right - left
+            h = bottom - top
+            return left + w / 2, top + h / 2, w, h
 
     @staticmethod
     def _compute_bounds_from_center(center, length):
@@ -138,6 +139,8 @@ class TrackingResults:
         """
 
         assert prediction_format in BboxFormats.FORMATS, "Argument to 'pred_format' must be a BboxFormat constant"
+
+        logging.info("Results have prediction format {0}".format(prediction_format))
 
         self.metrics = []
         self.predictions = predictions
@@ -242,6 +245,7 @@ class TorrMetrics:
         Returns:
             bbox in (cx, cy, w, h) format.
         """
+        logging.debug("TorrMetrics converting prediction from {0} to {1}".format(from_format, BboxFormats.CCWH))
         return BboxFormats.convert_bbox_format(bbox, from_format, BboxFormats.CCWH)
 
 
