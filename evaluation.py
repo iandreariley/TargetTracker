@@ -112,7 +112,7 @@ class TrackingResults:
             FileNotFoundError if the path does not reference a valid file.
         """
 
-        with open(path, 'rb') as pickle_file:
+        with open(path, 'wb') as pickle_file:
             pickle.dump(self, pickle_file)
 
 
