@@ -100,6 +100,7 @@ def run_single_session(args):
         distance_threshold = load_params(os.path.join('siamfc-params', 'evaluation.json'))['dist_threshold']
         results.add_metric(evaluation.TorrMetrics(distance_threshold))
         results.add_metric(evaluation.FpsMetric())
+        save_results(args, results)
         return aggregate_results([results]), distance_threshold, 1
     else:
         target_tracker = configure_tracker(args.sequence_type, args.sequence_source, args.target_location,
@@ -203,12 +204,10 @@ def main():
     if args.benchmark:
         logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
         benchmark_results = run_benchmark(args)
-        save_results(benchmark_results)
         print_metrics(*benchmark_results)
     else:
         logging.info("Tracking object on source {0}".format(args.sequence_source))
         run_results = run_single_session(args)
-        save_results(args, run_results)
         print_metrics(*run_results)
 
 
