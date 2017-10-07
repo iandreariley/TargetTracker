@@ -163,7 +163,7 @@ class SiamFC:
         pos_x, pos_y = self._update_target_position(pos_x, pos_y, best_score_map)
 
         # convert <cx,cy,w,h> to <x,y,w,h> and save output
-        self.location = pos_x-target_w / 2, pos_y-target_h / 2, target_w, target_h
+        self.location = pos_x, pos_y, target_w, target_h
 
         # update template patch size
         self.z_sz = (1-scale_lr) * self.z_sz + scale_lr * scaled_exemplar[best_score_map_id]
