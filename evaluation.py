@@ -232,8 +232,22 @@ class TorrMetrics:
             self._compute_metrics(results)
         return self._metrics
 
+    def _convert_to_ccwh(self, bbox, from_format):
+        """Convert bbox from any format in evaluation.BboxFormats to BboxFormat.CCWH.
+
+        Args:
+            bbox (int, int, int, int): bbox of any recognized format
+            from_format (int): format of `bbox`.
+
+        Returns:
+            bbox in (cx, cy, w, h) format.
+        """
+        return BboxFormats.convert_bbox_format(bbox, from_format, BboxFormats.CCWH)
+
+
     def _compute_metrics(self, results):
-        predictions = np.array(results.predictions.values())
+        predictions = np.array(map(lambda bb: self._convert_to_ccwh(bb, results.prediction_format),
+                                   results.predictions.values()))
         ground_truth = np.array(results.ground_truth)
         length = len(predictions)
         new_distances = np.zeros(length)
