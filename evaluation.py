@@ -10,7 +10,7 @@ class TrackingViewer:
 
     BBOX_COLOR = (255, 0, 0)
 
-    def __init__(self, title="view", bbox_format=None):
+    def __init__(self, title="view"):
         """Settings for viewer
 
         Args:
@@ -71,7 +71,7 @@ class TrackingResults:
         elapsed_time (int): Time elapsed during tracking session.
     """
 
-    def __init__(self, predictions, first_bbox=None, elapsed_time=None, ground_truth=None, pred_format=BboxFormats.CCWH, gt_format.BboxFormats.CCWH):
+    def __init__(self, predictions, first_bbox, elapsed_time, ground_truth, prediction_format=BboxFormats.CCWH):
         """Stores arguments as results.
 
         Args:
@@ -82,17 +82,17 @@ class TrackingResults:
                 (int, int, int, int) it is assumed to be a bounding box in (x, y, w, h) format, where (x, y) is the
                 top left corner of the box. If each element is an 8-tuple of ints, it is assumed to be of the form
                 (x1, y1, x2, y2 ... x4, y4) where each (xn, yn) is a corner of a quadrangle defining the region.
-            pred_format (BboxFormat): Format of predicted bounding boxes. Defaults to (center_x, center_y, width, height).
-            gt_format (BboxFormat): Format of ground-truth bounding boxes. Defaults to (center_x, center_y, width, height)
+            prediction_format (BboxFormat): Format of predicted bounding boxes. Defaults to (center_x, center_y, width,
+                height).
         """
 
-        assert pred_format in BboxFormats.FORMATS, "Argument to 'pred_format' must be a BboxFormat constant"
-        assert gt_format in BboxFormats.FORMATS, "Argument to 'gt_format' must be a BboxFormat constant"
+        assert prediction_format in BboxFormats.FORMATS, "Argument to 'pred_format' must be a BboxFormat constant"
 
         self.metrics = []
         self.predictions = predictions
         self.first_bbox = first_bbox
         self.elapsed_time = elapsed_time
+        self.prediction_format = prediction_format
 
         if ground_truth is not None and len(ground_truth[0]) == 8:
             self.ground_truth = map(util.region_to_bbox, ground_truth)
