@@ -122,7 +122,7 @@ class TrackingResults:
         elapsed_time (int): Time elapsed during tracking session.
     """
 
-    def __init__(self, predictions, first_bbox, elapsed_time, ground_truth, prediction_format=BboxFormats.CCWH):
+    def __init__(self, predictions, first_bbox, elapsed_time, ground_truth, prediction_format):
         """Stores arguments as results.
 
         Args:

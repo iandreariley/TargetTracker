@@ -96,7 +96,8 @@ def run_single_session(args):
         target_tracker.track()
         elapsed = time.time() - start_time
 
-        results = evaluation.TrackingResults(target_tracker.locations, initial_location, elapsed, ground_truth)
+        results = evaluation.TrackingResults(target_tracker.locations, initial_location, elapsed, ground_truth,
+                                             target_tracker.get_location_format())
         distance_threshold = load_params(os.path.join('siamfc-params', 'evaluation.json'))['dist_threshold']
         results.add_metric(evaluation.TorrMetrics(distance_threshold))
         results.add_metric(evaluation.FpsMetric())
