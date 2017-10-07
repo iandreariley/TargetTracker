@@ -43,10 +43,9 @@ class SimpleTracker:
     # TODO: Utility function for debugging. Either remove or remove call in init for production.
     def _preview_target_location(self):
         bbox_image = np.copy(self.current_image)
-        left, top, bottom, right = evaluation.BboxFormats.convert_bbox_format(self.initial_location,
+        left, top, right, bottom = evaluation.BboxFormats.convert_bbox_format(self.initial_location,
                                                                              evaluation.BboxFormats.CCWH,
                                                                              evaluation.BboxFormats.TLBR)
-
         # draw bounding box.
         cv2.line(bbox_image, (left, top), (right, top), self.BBOX_COLOR, 4)
         cv2.line(bbox_image, (right, top), (right, bottom), self.BBOX_COLOR, 4)
