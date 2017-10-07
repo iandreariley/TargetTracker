@@ -88,7 +88,7 @@ def shift_location_up_right(location):
 def run_single_session(args):
     if args.evaluate:
         ground_truth = load_groundtruth(args.sequence_source)
-        initial_location = shift_location_up_right(map(int, ground_truth[0]))
+        initial_location = ground_truth[0]
         logging.info("Initial location: {0}".format(initial_location))
         target_tracker = configure_tracker(args.sequence_type, args.sequence_source, initial_location,
                                            args.detection_algo)
@@ -113,6 +113,7 @@ def load_groundtruth(directory):
     with open(os.path.join(directory, "groundtruth.txt")) as bbox_csv:
         reader = csv.reader(bbox_csv)
         ground_truth_bboxes = map(lambda region: util.region_to_bbox(np.array(map(float, region))), reader)
+        ground_truth_bboxes = map(lambda bbox: shift_location_up_right(map(int, bbox)), ground_truth_bboxes)
     return ground_truth_bboxes
 
 
