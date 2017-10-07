@@ -27,9 +27,10 @@ class TrackingViewer:
         Returns:
             None
         """
-        tl, br = util.to_tl_br(tracker.current_location)
-        tl = tuple(map(int, tl))
-        br = tuple(map(int, br))
+        left, top, bottom, right = BboxFormats.convert_bbox_format(tracker.current_location,
+                                                                   tracker.get_location_format(), BboxFormats.TLBR)
+        tl = tuple(map(int, (left, top)))
+        br = tuple(map(int, (right, bottom)))
 
         bbox_image = self._draw_bounding_box(tracker.current_image, tl, br)
         cv2.imshow(self._title, bbox_image)
@@ -55,10 +56,60 @@ class TrackingViewer:
 class BboxFormats:
     """Just an enum of formats used for bounding boxes"""
     CCWH = 1
-    XYWH = 2
     TLBR = 3
-    FORMATS = [CCWH, XYWH, TLBR]
+    FORMATS = [CCWH, TLBR]
 
+    @staticmethod
+    def convert_bbox_format(bbox, from_format, to_format):
+        """Convert bbox from one format to another.
+
+        Args:
+            bbox (int, int, int, int): Bounding box in from_format.
+            from_format (int): Format that bbox is currently in.
+            to_format (int): Format that bbox should be converted to.
+
+        Returns:
+            bbox (int, int, int, int): Bounding box in to_format.
+
+        Raises:
+            AssertionError: If from_format or to_format are not in supported format (constants in this class).
+        """
+
+        assert from_format in BboxFormats.FORMATS, "From format {0} not in supported bounding box " \
+                                                   "formats!".format(from_format)
+        assert to_format in BboxFormats.FORMATS, "To format {0} not in supported bounding box " \
+                                                 "formats!".format(to_format)
+
+        if from_format == to_format:
+            return bbox
+
+        if from_format == BboxFormats.CCWH:
+            cx, cy, w, h = bbox
+            left, right = BboxFormats._compute_bounds_from_center(cx, w)
+            top, bottom = BboxFormats._compute_bounds_from_center(cy, h)
+            return left, top, right, bottom
+        else:
+            left, top, right, bottom = bbox
+            return left, top, right - left, bottom - top
+
+
+    @staticmethod
+    def _compute_bounds_from_center(center, length):
+        """Means of computing the bounds of a range from it's center and length. Accounts for integer division.
+
+        Notes: Invertible thus: length = upper_bound - lower_bound, center = lower_bound + length / 2.
+
+        Args:
+            center (int): The center-most pixel. On the low side of center if length is odd (making center fractional).
+            length (int): The length of the range.
+
+        Returns:
+            (lower_bound, upper_bound) (int, int): The lower and upper bound of the range [lower, upper).
+        """
+
+        left_pad = length / 2
+        right_pad = length - left_pad
+        return center - left_pad, center + right_pad
 
 class TrackingResults:
     """Results of a tracking session.
@@ -78,7 +129,7 @@ class TrackingResults:
             predictions (list<(int, int, int, int)>): List of predicted bounding boxes.
             first_bbox (int, int, int, int): The given location of the target in the first frame of the sequence.
             elapsed_time (int): Clock time elapsed during tracking.
-            ground_truth (list<(4 * int) | (8 * int)>): A list of ground-truth bounding boxes. If each element is
+            ground_truth (list<(int, int, int, int)>): A list of ground-truth bounding boxes. If each element is
                 (int, int, int, int) it is assumed to be a bounding box in (x, y, w, h) format, where (x, y) is the
                 top left corner of the box. If each element is an 8-tuple of ints, it is assumed to be of the form
                 (x1, y1, x2, y2 ... x4, y4) where each (xn, yn) is a corner of a quadrangle defining the region.
@@ -93,11 +144,7 @@ class TrackingResults:
         self.first_bbox = first_bbox
         self.elapsed_time = elapsed_time
         self.prediction_format = prediction_format
-
-        if ground_truth is not None and len(ground_truth[0]) == 8:
-            self.ground_truth = map(util.region_to_bbox, ground_truth)
-        else:
-            self.ground_truth = ground_truth
+        self.ground_truth = ground_truth
 
     def add_metric(self, metric):
         """Add a metric to compute over these results"""

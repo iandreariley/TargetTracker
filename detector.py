@@ -523,12 +523,11 @@ class CmtDetector:
         """
 
         grey_image = self._to_grayscale_image(image)
-        cx, cy, w, h = bbox
-        top_left = cx - w / 2, cy - h / 2
-        bottom_right = top_left[0] + w, top_left[1] + h
+        left, top, right, bottom = evaluation.BboxFormats.convert_bbox_format(bbox, evaluation.BboxFormats.CCWH,
+                                                                              evaluation.BboxFormats.TLBR)
 
-        self._cmt.initialise(grey_image, top_left, bottom_right)
-        self.location = top_left + bottom_right
+        self._cmt.initialise(grey_image, (left, top), (right, bottom))
+        self.location = left, top, right, bottom
 
     def _to_grayscale_image(self, image):
         """Convert RGB image to grayscale."""

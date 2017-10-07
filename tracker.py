@@ -4,6 +4,7 @@ import logging
 import util
 import cv2
 import numpy as np
+import evaluation
 
 
 class SimpleTracker:
@@ -24,36 +25,39 @@ class SimpleTracker:
         """Initialize Tracker with an image sequence, target location and a means of tracking / detection.
 
         Args:
-            sequence (ImageSequence):
-            detector (Detector):
-            bbox (int, int, int, int):
+            sequence (ImageSequence): Sequence to track over.
+            detector (Detector): Detection algorithm to use for tracking.
+            bbox (int, int, int, int): Bounding box in (cx, cy, w, h) format.
         """
 
         self._sequence = sequence
         self._detector = detector
         self._subscribers = []
-        self.current_id, self.current_image = next(self._sequence)
-        self.current_location = bbox or self._prompt_for_target()
-        self.locations = collections.OrderedDict({self.current_id: self.current_location})
+        self.initial_location = bbox if bbox is not None else self._prompt_for_target()
+        self.initial_image_id, self.current_image = next(self._sequence)
+        self.current_id = self.initial_image_id
+        self.current_location = None
+        self.locations = collections.OrderedDict()
         self._preview_target_location()
 
     # TODO: Utility function for debugging. Either remove or remove call in init for production.
     def _preview_target_location(self):
         bbox_image = np.copy(self.current_image)
-        top_left, bottom_right = util.to_tl_br(self.current_location)
-
-        # get the top-right and bottom-left corners
-        top_right = (bottom_right[0], top_left[1])
-        bottom_left = (top_left[0], bottom_right[1])
+        left, top, bottom, right = evaluation.BboxFormats.convert_bbox_format(self.initial_location,
+                                                                             evaluation.BboxFormats.CCWH,
+                                                                             evaluation.BboxFormats.TLBR)
 
         # draw bounding box.
-        cv2.line(bbox_image, top_left, top_right, self.BBOX_COLOR, 4)
-        cv2.line(bbox_image, top_right, bottom_right, self.BBOX_COLOR, 4)
-        cv2.line(bbox_image, bottom_right, bottom_left, self.BBOX_COLOR, 4)
-        cv2.line(bbox_image, bottom_left, top_left, self.BBOX_COLOR, 4)
+        cv2.line(bbox_image, (left, top), (right, top), self.BBOX_COLOR, 4)
+        cv2.line(bbox_image, (right, top), (right, bottom), self.BBOX_COLOR, 4)
+        cv2.line(bbox_image, (right, bottom), (left, bottom), self.BBOX_COLOR, 4)
+        cv2.line(bbox_image, (left, bottom), (left, top), self.BBOX_COLOR, 4)
 
         cv2.imshow("preview", bbox_image)
         cv2.waitKey()
+
+    def get_location_format(self):
+        return self._detector.get_bbox_format()
 
     def _prompt_for_target(self):
         """Prompt user for target bounding box.
@@ -65,13 +69,14 @@ class SimpleTracker:
         """
 
         tl, br = util.get_rect(self.current_image)
-        return util.to_xywh(tl, br)
+        return evaluation.BboxFormats.convert_bbox_format(tl + br, evaluation.BboxFormats.TLBR,
+                                                          evaluation.BboxFormats.CCWH)
 
     def track(self):
         """Generate bounding boxes for each image in sequence."""
 
         logging.info("Initializing detector with first image and target location.")
-        self._detector.set_target(self.current_image, self.current_location)
+        self._detector.set_target(self.current_image, self.initial_location)
         logging.info("Detector initialized.")
 
         logging.info("Beginning tracking.")
