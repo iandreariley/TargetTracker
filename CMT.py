@@ -35,7 +35,6 @@ class CMT(object):
 		keypoints_cv = self.detector.detect(im_gray0)
 
 		# Remember keypoints that are in the rectangle as selected keypoints
-                logging.info("Top left: {0}\nBottom right: {1}".format(tl, br))
 		ind = util.in_rect(keypoints_cv, tl, br)
 		selected_keypoints_cv = list(itertools.compress(keypoints_cv, ind))
 		selected_keypoints_cv, self.selected_features = self.descriptor.compute(im_gray0, selected_keypoints_cv)
