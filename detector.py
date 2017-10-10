@@ -63,6 +63,8 @@ class SiamFC:
         penalty = np.transpose(self.hann_1d) * self.hann_1d
         self.penalty = penalty / np.sum(penalty)
         self.location = None
+        self._session = tf.Session()
+        tf.initialize_all_variables().run(session=self._session)
 
     def get_bbox_format(self):
         """Returns format used by this detector. Part of Detector implementation."""
@@ -96,8 +98,6 @@ class SiamFC:
         self.max_x = self._hyper_params['scale_max'] * self.x_sz
 
         # Extract target features and hold in memory.
-        self._session = tf.Session()
-        tf.initialize_all_variables().run(session=self._session)
         self.template = np.squeeze(self._session.run(self.templates_z, feed_dict={self.pos_x_ph: pos_x,
                                                                     self.pos_y_ph: pos_y,
                                                                     self.z_sz_ph: self.z_sz,
