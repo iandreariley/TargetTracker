@@ -80,12 +80,6 @@ def configure_tracker(sequence_type, sequence_source, target_location, detection
     return trkr
 
 
-def shift_location_up_right(location):
-        location[0] -= location[2] / 2
-        location[1] -= location[3] / 2
-        return location
-
-
 def run_single_session(args):
     if args.evaluate:
         ground_truth = load_groundtruth(args.sequence_source)
