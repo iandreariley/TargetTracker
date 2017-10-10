@@ -192,7 +192,6 @@ def run_benchmark(args):
     for sequence in benchmark_sequences:
         sequence_path = os.path.join(args.sequence_source, sequence)
         results, distance_threshold = evaluate_detector_on_sequence(detection_algo, sequence_path)
-        save_results(args, results)
         benchmark_results[sequence] = results
     return aggregate_results(benchmark_results), distance_threshold, len(benchmark_sequences)
 
