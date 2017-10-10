@@ -5,6 +5,7 @@ import tracker
 import image_sequence
 import evaluation
 import os
+import sys
 import csv
 import util
 import json
@@ -42,7 +43,8 @@ def get_cli_args():
     parser.add_argument("--benchmark", action="store_true", help="Flag. If set, sequence_source is taken to be a "
                                                                  "directory with a number of sequences over which the "
                                                                  "tracking algorithm is meant to be run.")
-    parser.add_argument("--save_dir", help="directory in which to save output", default="")
+    parser.add_argument("--save_dir", help="directory in which to save output. If  running a benchmark, "
+            "This parameter must be supplied.", default="")
     parser.add_argument("--save_name", help="filename for results output file.", default=".")
     parser.add_argument("--db", action="store_true", help="Set for debugging output.")
     return parser.parse_args()
@@ -185,15 +187,29 @@ def run_benchmark(args):
     Returns:
         three-tuple of aggregate metrics, distance_threshold, and number of videos in benchmark.
     """
+    if not args.save_dir:
+        logging.info("If running benchmark, you must also provide a directory to save results to via the " \
+                     "--save_dir argument")
+        sys.exit(0)
+
+    if os.path.exists(args.save_dir):
+        if os.path.isdir(args.save_dir) and len(os.listdir(args.save_dir)) > 0:
+            logging.info("Save directory already exists and contains data! aborting.")
+            sys.exit(0)
+        elif not os.path.isdir(args.save_dir):
+            logging.info("The path name {0} belongs to a file! aborting.".format(args.save_dir))
+            sys.exit(0)
+    else:
+        os.mkdir(args.save_dir)
+
     benchmark_sequences = os.listdir(args.sequence_source)
-    benchmark_results = collections.OrderedDict()
     distance_threshold = load_params(os.path.join('siamfc-params', 'evaluation.json'))['dist_threshold']
     detection_algo = detector.SiamFC() if args.detection_algo == NEURAL_NETWORK else detector.CmtDetector()
     for sequence in benchmark_sequences:
         sequence_path = os.path.join(args.sequence_source, sequence)
         results, distance_threshold = evaluate_detector_on_sequence(detection_algo, sequence_path)
-        benchmark_results[sequence] = results
-    return aggregate_results(benchmark_results.values()), distance_threshold, len(benchmark_sequences)
+        results_filename = sequence + '_results.p'
+        results.save(os.path.join(args.save_dir, results_filename))
 
 
 def print_metrics(metrics, dist_threshold, nv):
@@ -217,8 +233,7 @@ def main():
 
     if args.benchmark:
         logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
-        benchmark_results = run_benchmark(args)
-        print_metrics(*benchmark_results)
+        run_benchmark(args)
     else:
         logging.info("Tracking object on source {0}".format(args.sequence_source))
         run_results = run_single_session(args)
