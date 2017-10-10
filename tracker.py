@@ -78,7 +78,12 @@ class SimpleTracker:
         """Generate bounding boxes for each image in sequence."""
 
         logging.info("Initializing detector with first image and target location.")
-        self._detector.set_target(self.current_image, self.initial_location)
+        try:
+            self._detector.set_target(self.current_image, self.initial_location)
+        except Exception as e:
+            logging.warn("Detector threw following exception on call to set_target: {0}".format(e))
+            self.locations = [None] * len(self._sequence)
+            return
         logging.info("Detector initialized.")
 
         logging.info("Beginning tracking.")
