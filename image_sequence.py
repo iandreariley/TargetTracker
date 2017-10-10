@@ -37,6 +37,9 @@ class DirectorySequence:
     def __iter__(self):
         return self
 
+    def __len__(self):
+        return len(self._sequence)
+
     def next(self):
         if self._index < self._size:
             file_path = self._sequence[self._index]
