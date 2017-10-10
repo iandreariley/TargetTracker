@@ -1,5 +1,6 @@
-# pycharm config files
 .idea/
 *.pyc
 *.p
 *~
+pretrained/
+videos/
