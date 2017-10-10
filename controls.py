@@ -4,8 +4,8 @@ from math import cos, tan, atan, sin, pi
 import numpy as np
 import sys
 
-PIX_WIDTH = 960
-PIX_HEIGHT = 720
+PIX_WIDTH = 640
+PIX_HEIGHT = 480
 Y_SHIFT = PIX_HEIGHT / 2
 X_SHIFT = PIX_WIDTH / 2
 DEGREES_TO_RADIANS = pi / 180
