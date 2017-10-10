@@ -212,7 +212,8 @@ def run_benchmark(args):
     benchmark_sequences = os.listdir(args.sequence_source)
     distance_threshold = load_params(os.path.join('siamfc-params', 'evaluation.json'))['dist_threshold']
     detection_algo = detector.SiamFC() if args.detection_algo == NEURAL_NETWORK else detector.CmtDetector()
-    for sequence in benchmark_sequences:
+    for i, sequence in enumerate(benchmark_sequences):
+        logging.info("Running tracking for video {0} of {1}.".format(i + 1, len(benchmark_sequences)))
         sequence_path = os.path.join(args.sequence_source, sequence)
         results, distance_threshold = evaluate_detector_on_sequence(detection_algo, sequence_path, args.visualize, args.preview)
         results_filename = sequence + '_results.p'
