@@ -187,7 +187,7 @@ def run_benchmark(args):
     """
     benchmark_sequences = os.listdir(args.sequence_source)
     benchmark_results = collections.OrderedDict()
-    distance_threshold = load_params(os.path.join('parameters', 'evaluation.json'))['dist_threshold']
+    distance_threshold = load_params(os.path.join('siamfc-params', 'evaluation.json'))['dist_threshold']
     detection_algo = detector.SiamFC() if args.detection_algo == NEURAL_NETWORK else detector.CmtDetector()
     for sequence in benchmark_sequences:
         sequence_path = os.path.join(args.sequence_source, sequence)
