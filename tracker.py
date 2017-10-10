@@ -21,13 +21,14 @@ class SimpleTracker:
 
     BBOX_COLOR = (255, 0, 0)
 
-    def __init__(self, sequence, detector, bbox=None):
+    def __init__(self, sequence, detector, bbox=None, preview_target=False):
         """Initialize Tracker with an image sequence, target location and a means of tracking / detection.
 
         Args:
             sequence (ImageSequence): Sequence to track over.
             detector (Detector): Detection algorithm to use for tracking.
             bbox (int, int, int, int): Bounding box in (cx, cy, w, h) format.
+            preview_target (boolean): Whether or not to preview target location before tracking commences.
         """
 
         self._sequence = sequence
@@ -38,7 +39,9 @@ class SimpleTracker:
         self.current_id = self.initial_image_id
         self.current_location = None
         self.locations = collections.OrderedDict()
-        self._preview_target_location()
+
+        if preview_target:
+            self._preview_target_location()
 
     # TODO: Utility function for debugging. Either remove or remove call in init for production.
     def _preview_target_location(self):
