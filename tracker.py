@@ -82,7 +82,11 @@ class SimpleTracker:
             self._detector.set_target(self.current_image, self.initial_location)
         except Exception as e:
             logging.warn("Detector threw following exception on call to set_target: {0}".format(e))
-            self.locations = [None] * len(self._sequence)
+
+            # If target can't be set, assume tracker cannot find target for entire sequence.
+            for image_id, _ in self._sequence:
+                self.locations[image_id] = None
+
             return
         logging.info("Detector initialized.")
 
