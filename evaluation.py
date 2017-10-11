@@ -1,5 +1,4 @@
 import cv2
-import util
 import numpy as np
 import logging
 import pickle
@@ -74,6 +73,9 @@ class BboxFormats:
         Raises:
             AssertionError: If from_format or to_format are not in supported format (constants in this class).
         """
+
+        if bbox is None:
+            return None
 
         assert from_format in BboxFormats.FORMATS, "From format {0} not in supported bounding box " \
                                                    "formats!".format(from_format)
@@ -251,7 +253,7 @@ class TorrMetrics:
 
     def _compute_metrics(self, results):
         predictions = np.array(map(lambda bb: self._convert_to_ccwh(bb, results.prediction_format),
-                                   results.predictions.values()))
+            results.predictions.values()))
         ground_truth = np.array(results.ground_truth)
         length = len(predictions)
         new_distances = np.zeros(length)
@@ -295,6 +297,15 @@ class TorrMetrics:
 
 
     def _compute_iou(self, boxA, boxB):
+
+        # Ground-truth and prediction agree that target is not in image: return 1.0
+        if boxA is None and boxB is None:
+            return 1.0
+
+        # Ground-truth and prediction disagree about target's presence in image: return 0.0
+        if boxA is None or boxB is None:
+            return 0.0
+
         # determine the (x, y)-coordinates of the intersection rectangle
         xA = max(boxA[0], boxB[0])
         yA = max(boxA[1], boxB[1])
