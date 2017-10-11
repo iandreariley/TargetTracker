@@ -200,10 +200,7 @@ def run_benchmark(args):
         sys.exit(0)
 
     if os.path.exists(args.save_dir):
-        if os.path.isdir(args.save_dir) and len(os.listdir(args.save_dir)) > 0:
-            logging.info("Save directory already exists and contains data! aborting.")
-            sys.exit(0)
-        elif not os.path.isdir(args.save_dir):
+        if not os.path.isdir(args.save_dir):
             logging.info("The path name {0} belongs to a file! aborting.".format(args.save_dir))
             sys.exit(0)
     else:
@@ -214,10 +211,17 @@ def run_benchmark(args):
     detection_algo = detector.SiamFC() if args.detection_algo == NEURAL_NETWORK else detector.CmtDetector()
     for i, sequence in enumerate(benchmark_sequences):
         logging.info("Running tracking for video {0} of {1}.".format(i + 1, len(benchmark_sequences)))
-        sequence_path = os.path.join(args.sequence_source, sequence)
-        results, distance_threshold = evaluate_detector_on_sequence(detection_algo, sequence_path, args.visualize, args.preview)
-        results_filename = sequence + '_results.p'
-        results.save(os.path.join(args.save_dir, results_filename))
+        try:
+            results_filename = sequence + '_results.p'
+            results_path = os.path.join(args.save_dir, results_filename)
+            if not os.path.exists(results_path):
+                sequence_path = os.path.join(args.sequence_source, sequence)
+                results, distance_threshold = evaluate_detector_on_sequence(detection_algo, sequence_path, args.visualize, args.preview)
+                results.save(results_path)
+            else:
+                logging.info("Tracking results for sequence {0} already exits. Skipping.".format(sequence))
+        except Exception as e:
+            logging.warn("Sequence {0} failed with the following exception: {1}".format(sequence, e))
 
 
 def print_metrics(metrics, dist_threshold, nv):
