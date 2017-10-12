@@ -230,7 +230,7 @@ class TorrMetrics:
         """Implementation of Metrics interface. returns key-value pairs of metrics
 
         Args:
-            results (evaluation.TrackingResults): The tracking predictions over which to comput these metrics.
+            results (evaluation.TrackingResults): The tracking predictions over which to compute these metrics.
         """
 
         if self._metrics is None:
@@ -269,6 +269,7 @@ class TorrMetrics:
         # what's the percentage of frame in which center displacement is inferior to given threshold? (OTB metric)
         precision = float(sum(new_distances < self._distance_threshold))/np.size(new_distances) * 100
 
+        # TODO: The "thresholds" code below looks convoluted. Can we do this with one call to linspace?
         # find above result for many thresholds, then report the AUC
         thresholds = np.linspace(0, 25, n_thresholds+1)
         thresholds = thresholds[-n_thresholds:]
