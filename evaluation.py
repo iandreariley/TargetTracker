@@ -252,9 +252,9 @@ class TorrMetrics:
 
 
     def _compute_metrics(self, results):
-        predictions = np.array(map(lambda bb: self._convert_to_ccwh(bb, results.prediction_format),
-            results.predictions.values()))
-        ground_truth = np.array(results.ground_truth)
+        predictions = map(lambda bb: self._convert_to_ccwh(bb, results.prediction_format),
+            results.predictions.values())
+        ground_truth = results.ground_truth
         length = len(predictions)
         new_distances = np.zeros(length)
         new_ious = np.zeros(length)
@@ -263,8 +263,8 @@ class TorrMetrics:
 
         # Compute IoUs for each frame.
         for i in range(length):
-            new_distances[i] = self._compute_distance(predictions[i, :], ground_truth[i, :])
-            new_ious[i] = self._compute_iou(predictions[i, :], ground_truth[i, :])
+            new_distances[i] = self._compute_distance(predictions[i], ground_truth[i])
+            new_ious[i] = self._compute_iou(predictions[i], ground_truth[i])
 
         # what's the percentage of frame in which center displacement is inferior to given threshold? (OTB metric)
         precision = float(sum(new_distances < self._distance_threshold))/np.size(new_distances) * 100
@@ -286,8 +286,18 @@ class TorrMetrics:
         self._metrics = zip(self.METRICS, [length, precision, precision_auc, iou])
 
     def _compute_distance(self, boxA, boxB):
-        a = np.array((boxA[0]+boxA[2]/2, boxA[1]+boxA[3]/2))
-        b = np.array((boxB[0]+boxB[2]/2, boxB[1]+boxB[3]/2))
+
+        if boxA is None and boxB is None:
+            return 0.0
+
+        if boxA is None or boxB is None:
+            return float('Inf')
+
+        boxA_ = np.array(boxA)
+        boxB_ = np.array(boxB)
+
+        a = np.array((boxA_[0]+boxA_[2]/2, boxA_[1]+boxA_[3]/2))
+        b = np.array((boxB_[0]+boxB_[2]/2, boxB_[1]+boxB_[3]/2))
         dist = np.linalg.norm(a - b)
 
         assert dist >= 0
@@ -306,19 +316,22 @@ class TorrMetrics:
         if boxA is None or boxB is None:
             return 0.0
 
+        boxA_ = np.array(boxA)
+        boxB_ = np.array(boxB)
+
         # determine the (x, y)-coordinates of the intersection rectangle
-        xA = max(boxA[0], boxB[0])
-        yA = max(boxA[1], boxB[1])
-        xB = min(boxA[0] + boxA[2], boxB[0] + boxB[2])
-        yB = min(boxA[1] + boxA[3], boxB[1] + boxB[3])
+        xA = max(boxA_[0], boxB_[0])
+        yA = max(boxA_[1], boxB_[1])
+        xB = min(boxA_[0] + boxA_[2], boxB_[0] + boxB_[2])
+        yB = min(boxA_[1] + boxA_[3], boxB_[1] + boxB_[3])
 
         if xA < xB and yA < yB:
             # compute the area of intersection rectangle
             interArea = (xB - xA) * (yB - yA)
             # compute the area of both the prediction and ground-truth
             # rectangles
-            boxAArea = boxA[2] * boxA[3]
-            boxBArea = boxB[2] * boxB[3]
+            boxAArea = boxA_[2] * boxA_[3]
+            boxBArea = boxB_[2] * boxB_[3]
             # compute the intersection over union by taking the intersection
             # area and dividing it by the sum of prediction + ground-truth
             # areas - the intersection area
