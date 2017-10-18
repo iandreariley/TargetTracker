@@ -143,7 +143,7 @@ def run_single_session(args):
 def load_groundtruth(directory):
     with open(os.path.join(directory, "groundtruth.txt")) as bbox_csv:
         reader = csv.reader(bbox_csv)
-        ground_truth_bboxes = map(lambda region: map(int, util.region_to_bbox(np.array(map(float, region)))), reader)
+        ground_truth_bboxes = map(lambda region: util.region_to_bbox(np.array(map(float, region))), reader)
     return ground_truth_bboxes
 
 
