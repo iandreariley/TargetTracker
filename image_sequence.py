@@ -1,5 +1,5 @@
 import os
-import cv2
+import scipy.ndimage as ndimage
 
 
 class DirectorySequence:
@@ -43,7 +43,7 @@ class DirectorySequence:
     def next(self):
         if self._index < self._size:
             file_path = self._sequence[self._index]
-            img = cv2.imread(file_path)[:, :, ::-1] # reverse channels to match weights in tf graph.
+            img = ndimage.imread(file_path)
             self._index += 1
             return file_path, img
         else:
