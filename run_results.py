@@ -14,12 +14,13 @@ def get_args():
     parser.add_argument("results_file", help="Picked TrackingResults object that contains the tracking results.")
     parser.add_argument("--video_dir", help="Video dir if different than stored", default="")
     parser.add_argument("--show_gt", action="store_true", help="Show ground truth bounding box.")
+    parser.add_argument("--speed", type=int, default=10, help="duration (in ms) of each frame")
     return parser.parse_args()
 
 
 def draw_bbox(image, bbox, color):
-    top_left = bbox[0], bbox[1]
-    bottom_right = bbox[0] + bbox[2], bbox[1] + bbox[3]
+    top_left = intify((bbox[0], bbox[1]))
+    bottom_right = intify((bbox[0] + bbox[2], bbox[1] + bbox[3]))
     top_right = (bottom_right[0], top_left[1])
     bottom_left = (top_left[0], bottom_right[1])
 
@@ -29,6 +30,9 @@ def draw_bbox(image, bbox, color):
     cv2.line(image, bottom_right, bottom_left, color, 4)
     cv2.line(image, bottom_left, top_left, color, 4)
 
+
+def intify(tup):
+    return tuple(map(int, tup))
 
 def resolve_directory(image_file, args):
     if not args.video_dir:
