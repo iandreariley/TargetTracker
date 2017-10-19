@@ -197,41 +197,35 @@ class SiamFC:
             return json.load(json_file)
 
     def _build_tracking_graph(self):
-        score_map_dim = self._hyper_params['response_up'] * (self._design_params['score_sz'] - 1) + 1
-        image = tf.placeholder(dtype=tf.float32, shape=(None,None,None), name='image')
+        # Decode the image as a JPEG file, this will turn it into a Tensor
+        image = tf.placeholder(dtype=tf.uint8, shape=(None,None,None), name='image')
+        image = 255.0 * tf.image.convert_image_dtype(image, tf.float32)
         frame_sz = tf.shape(image)
+        # used to pad the crops
         avg_chan = tf.reduce_mean(image, reduction_indices=(0,1), name='avg_chan')
-
         # pad with if necessary
-        frame_padded_z, npad_z = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
-                                            self.z_sz_ph, avg_chan)
+        frame_padded_z, npad_z = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph, self.z_sz_ph, avg_chan)
         frame_padded_z = tf.cast(frame_padded_z, tf.float32)
-
         # extract tensor of z_crops
-        z_crops = self._extract_crops_z(frame_padded_z, npad_z, self.pos_x_ph, self.pos_y_ph,
-                                        self.z_sz_ph, self._design_params['exemplar_sz'])
-        frame_padded_x, npad_x = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph,
-                                                 self.x_sz2_ph, avg_chan)
+        z_crops = self._extract_crops_z(frame_padded_z, npad_z, self.pos_x_ph, self.pos_y_ph, self.z_sz_ph,
+                                        self._design_params['exemplar_sz'])
+        frame_padded_x, npad_x = self._pad_frame(image, frame_sz, self.pos_x_ph, self.location, self.x_sz2_ph, avg_chan)
         frame_padded_x = tf.cast(frame_padded_x, tf.float32)
-
         # extract tensor of x_crops (3 scales)
-        x_crops = self._extract_crops_x(frame_padded_x, npad_x, self.pos_x_ph, self.pos_y_ph,
-                                        self.x_sz0_ph, self.x_sz1_ph, self.x_sz2_ph,
-                                        self._design_params['search_sz'])
-
+        x_crops = self._extract_crops_x(frame_padded_x, npad_x, self.pos_x_ph, self.pos_y_ph, self.x_sz0_ph, self.x_sz1_ph,
+                                        self.x_sz2_ph, self._design_params['exemplar_sz'])
         # use crops as input of (MatConvnet imported) pre-trained fully-convolutional Siamese net
         weights_path = os.path.join(self._environment_params['root_pretrained'],
                                     self._design_params['net'])
-        template_z, templates_x, p_names_list, p_val_list = \
-            self._create_siamese(weights_path, x_crops, z_crops)
+        template_z, templates_x, p_names_list, p_val_list = self._create_siamese(weights_path, x_crops, z_crops)
         template_z = tf.squeeze(template_z)
         templates_z = tf.pack([template_z, template_z, template_z])
-
         # compare templates via cross-correlation
         scores = self._match_templates(templates_z, templates_x, p_names_list, p_val_list)
         # upsample the score maps
-        scores_up = tf.image.resize_images(scores, [score_map_dim, score_map_dim],
-            method=tf.image.ResizeMethod.BICUBIC, align_corners=True)
+        final_score_sz = self._hyper_params['response_up'] * (self._design_params['score_sz'] - 1) + 1
+        scores_up = tf.image.resize_images(scores, [final_score_sz, final_score_sz],
+                                           method=tf.image.ResizeMethod.BICUBIC, align_corners=True)
         return image, templates_z, scores_up
 
     def _pad_frame(self, im, frame_sz, pos_x, pos_y, patch_sz, avg_chan):
