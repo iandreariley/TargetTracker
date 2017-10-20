@@ -15,12 +15,17 @@ def get_args():
     parser.add_argument("--video_dir", help="Video dir if different than stored", default="")
     parser.add_argument("--show_gt", action="store_true", help="Show ground truth bounding box.")
     parser.add_argument("--speed", type=int, default=10, help="duration (in ms) of each frame")
+    parser.add_argument("--center", action="store_true", help="whether to center the bbox")
     return parser.parse_args()
 
 
-def draw_bbox(image, bbox, color):
-    top_left = intify((bbox[0], bbox[1]))
-    bottom_right = intify((bbox[0] + bbox[2], bbox[1] + bbox[3]))
+def draw_bbox(image, bbox, color, center):
+    if center:
+        top_left = intify((bbox[0] - bbox[2] / 2, bbox[1] - bbox[3] / 2))
+        bottom_right = intify((bbox[0] + bbox[2] / 2, bbox[1] + bbox[3] / 2))
+    else:
+        top_left = intify((bbox[0], bbox[1]))
+        bottom_right = intify((bbox[0] + bbox[2], bbox[1] + bbox[3]))
     top_right = (bottom_right[0], top_left[1])
     bottom_left = (top_left[0], bottom_right[1])
 
@@ -52,8 +57,8 @@ def main(args):
         image_file = resolve_directory(image_file, args)
         image = cv2.imread(image_file)
         if args.show_gt:
-            draw_bbox(image, map(int, results.ground_truth[i]), GT_COLOR)
-        draw_bbox(image, bbox, PRED_COLOR)
+            draw_bbox(image, map(int, results.ground_truth[i]), GT_COLOR, args.center)
+        draw_bbox(image, bbox, PRED_COLOR, args.center)
         cv2.imshow('preview', image)
         cv2.waitKey(10)
 
