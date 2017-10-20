@@ -209,7 +209,7 @@ class SiamFC:
         # extract tensor of z_crops
         z_crops = self._extract_crops_z(frame_padded_z, npad_z, self.pos_x_ph, self.pos_y_ph, self.z_sz_ph,
                                         self._design_params['exemplar_sz'])
-        frame_padded_x, npad_x = self._pad_frame(image, frame_sz, self.pos_x_ph, self.location, self.x_sz2_ph, avg_chan)
+        frame_padded_x, npad_x = self._pad_frame(image, frame_sz, self.pos_x_ph, self.pos_y_ph, self.x_sz2_ph, avg_chan)
         frame_padded_x = tf.cast(frame_padded_x, tf.float32)
         # extract tensor of x_crops (3 scales)
         x_crops = self._extract_crops_x(frame_padded_x, npad_x, self.pos_x_ph, self.pos_y_ph, self.x_sz0_ph, self.x_sz1_ph,
