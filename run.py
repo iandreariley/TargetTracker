@@ -12,6 +12,8 @@ import json
 import time
 import collections
 import numpy as np
+from region_to_bbox import region_to_bbox
+
 
 STREAM = 'stream'
 DIRECTORY = 'directory'
@@ -81,12 +83,11 @@ def configure_tracker(sequence_type, sequence_source, target_location, detection
     return trkr
 
 
-def get_detector(detection_algo_type):
+def get_detector(detection_algo_type, hp, design, env):
     if detection_algo_type == NEURAL_NETWORK:
-        return detector.SiamFC()
+        return detector.SiameseNetwork(hp, design, env)
     else:
         return detector.CmtDetector()
-
 
 
 def evaluate_detector_on_sequence(detection_algo, sequence_path, visualize, preview=False):
@@ -138,6 +139,139 @@ def run_single_session(args):
                                            args.detection_algo)
         target_tracker.track()
         return target_tracker
+
+
+def alt_run():
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    hp, ev, run, env, design = parse_arguments()
+    d = detector.SiameseNetwork(hp, design, env)
+    gt, frame_name_list, _, _ = _init_video(env, ev, ev.video)
+    bbox = region_to_bbox(gt[ev.start_frame], center=False)
+    t = tracker.Tracker(hp, run, design, frame_name_list, bbox, d)
+    bboxes, speed = t.track()
+    _, precision, precision_auc, iou, _ = _compile_results(gt, bboxes, ev.dist_threshold)
+    print ev.video + \
+          ' -- Precision ' + "(%d px)" % ev.dist_threshold + ': ' + "%.2f" % precision + \
+          ' -- Precision AUC: ' + "%.2f" % precision_auc + \
+          ' -- IOU: ' + "%.2f" % iou + \
+          ' -- Speed: ' + "%.2f" % speed + ' --'
+    print
+
+
+def _compile_results(gt, bboxes, dist_threshold):
+    l = np.size(bboxes, 0)
+    gt4 = np.zeros((l, 4))
+    new_distances = np.zeros(l)
+    new_ious = np.zeros(l)
+    n_thresholds = 50
+    precisions_ths = np.zeros(n_thresholds)
+
+    for i in range(l):
+        gt4[i, :] = region_to_bbox(gt[i, :], center=False)
+        new_distances[i] = _compute_distance(bboxes[i, :], gt4[i, :])
+        new_ious[i] = _compute_iou(bboxes[i, :], gt4[i, :])
+
+    # what's the percentage of frame in which center displacement is inferior to given threshold? (OTB metric)
+    precision = sum(new_distances < dist_threshold)/np.size(new_distances) * 100
+
+    # find above result for many thresholds, then report the AUC
+    thresholds = np.linspace(0, 25, n_thresholds+1)
+    thresholds = thresholds[-n_thresholds:]
+    # reverse it so that higher values of precision goes at the beginning
+    thresholds = thresholds[::-1]
+    for i in range(n_thresholds):
+        precisions_ths[i] = sum(new_distances < thresholds[i])/np.size(new_distances)
+
+    # integrate over the thresholds
+    precision_auc = np.trapz(precisions_ths)
+
+    # per frame averaged intersection over union (OTB metric)
+    iou = np.mean(new_ious) * 100
+
+    return l, precision, precision_auc, iou, gt4
+
+
+def _init_video(env, evaluation, video):
+    video_folder = os.path.join(env.root_dataset, evaluation.dataset, video)
+    frame_name_list = [f for f in os.listdir(video_folder) if f.endswith(".jpg")]
+    frame_name_list = [os.path.join(env.root_dataset, evaluation.dataset, video, '') + s for s in frame_name_list]
+    frame_name_list.sort()
+    with Image.open(frame_name_list[0]) as img:
+        frame_sz = np.asarray(img.size)
+        frame_sz[1], frame_sz[0] = frame_sz[0], frame_sz[1]
+
+    # read the initialization from ground truth
+    gt_file = os.path.join(video_folder, 'groundtruth.txt')
+    gt = np.genfromtxt(gt_file, delimiter=',')
+    n_frames = len(frame_name_list)
+    assert n_frames == len(gt), 'Number of frames and number of GT lines should be equal.'
+
+    return gt, frame_name_list, frame_sz, n_frames
+
+
+def _compute_distance(boxA, boxB):
+    a = np.array((boxA[0]+boxA[2]/2, boxA[1]+boxA[3]/2))
+    b = np.array((boxB[0]+boxB[2]/2, boxB[1]+boxB[3]/2))
+    dist = np.linalg.norm(a - b)
+
+    assert dist >= 0
+    assert dist != float('Inf')
+
+    return dist
+
+
+def _compute_iou(boxA, boxB):
+    # determine the (x, y)-coordinates of the intersection rectangle
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[0] + boxA[2], boxB[0] + boxB[2])
+    yB = min(boxA[1] + boxA[3], boxB[1] + boxB[3])
+
+    if xA < xB and yA < yB:
+        # compute the area of intersection rectangle
+        interArea = (xB - xA) * (yB - yA)
+        # compute the area of both the prediction and ground-truth
+        # rectangles
+        boxAArea = boxA[2] * boxA[3]
+        boxBArea = boxB[2] * boxB[3]
+        # compute the intersection over union by taking the intersection
+        # area and dividing it by the sum of prediction + ground-truth
+        # areas - the intersection area
+        iou = interArea / float(boxAArea + boxBArea - interArea)
+    else:
+        iou = 0
+
+    assert iou >= 0
+    assert iou <= 1.01
+
+    return iou
+
+def parse_arguments(in_hp={}, in_evaluation={}, in_run={}):
+    with open('../siamfc-tf/parameters/hyperparams.json') as json_file:
+        hp = json.load(json_file)
+    with open('../siamfc-tf/parameters/evaluation.json') as json_file:
+        ev = json.load(json_file)
+    with open('../siamfc-tf/parameters/run.json') as json_file:
+        run = json.load(json_file)
+    with open('../siamfc-tf/parameters/environment.json') as json_file:
+        env = json.load(json_file)
+    with open('../siamfc-tf/parameters/design.json') as json_file:
+        design = json.load(json_file)
+
+    for name, value in in_hp.iteritems():
+        hp[name] = value
+    for name, value in in_evaluation.iteritems():
+        ev[name] = value
+    for name, value in in_run.iteritems():
+        run[name] = value
+
+    hp = collections.namedtuple('hp', hp.keys())(**hp)
+    ev = collections.namedtuple('evaluation', ev.keys())(**ev)
+    run = collections.namedtuple('run', run.keys())(**run)
+    env = collections.namedtuple('env', env.keys())(**env)
+    design = collections.namedtuple('design', design.keys())(**design)
+
+    return hp, ev, run, env, design
 
 
 def load_groundtruth(directory):
@@ -239,6 +373,8 @@ def main():
     args = get_cli_args()
     log_level = logging.DEBUG if args.db else logging.INFO
     logging.basicConfig(level=log_level)
+
+    alt_run()
 
     if args.benchmark:
         logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))

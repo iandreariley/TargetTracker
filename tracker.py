@@ -2,9 +2,50 @@ from __future__ import print_function
 import collections
 import logging
 import util
+import time
 import cv2
 import numpy as np
 import evaluation
+import visualization
+import scipy.ndimage as ndimage
+
+
+class Tracker:
+
+    def __init__(self, hp, run, design, frame_name_list, bbox, detector, start_frame=0):
+
+        self.frame_name_list = frame_name_list[start_frame:]
+        self.hp = hp
+        self.run = run
+        self.design = design
+        self.detector = detector
+        self.final_score_sz = hp.response_up * (design.score_sz - 1) + 1
+        self.bbox = bbox
+
+    def track(self):
+        num_frames = np.size(self.frame_name_list)
+        # stores tracker's output for evaluation
+        bboxes = np.zeros((num_frames,4))
+
+        # save first frame position (from ground-truth)
+        bboxes[0,:] = self.bbox
+        image_ = ndimage.imread(self.frame_name_list[0])
+        self.detector.set_target(image_, self.bbox)
+
+        t_start = time.time()
+
+        # Get an image from the queue
+        for i in range(1, num_frames):
+            image_ = ndimage.imread(self.frame_name_list[i])
+            bboxes[i, :] = self.detector.detect(image_)
+
+            if self.run.visualization:
+                visualization.show_frame(image_, bboxes[i, :], 1)
+
+        t_elapsed = time.time() - t_start
+        speed = num_frames/t_elapsed
+
+        return bboxes, speed
 
 
 class SimpleTracker:
