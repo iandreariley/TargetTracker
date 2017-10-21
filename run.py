@@ -33,8 +33,8 @@ def get_cli_args():
 
     parser = argparse.ArgumentParser(description="Run a target-tracking algorithm over an image sequence.")
 
-    parser.add_argument("sequence_source", help="The image sequence (e.g. device name, directory, ...) to run "
-                                                "the tracking algorithm on.")
+    # parser.add_argument("sequence_source", help="The image sequence (e.g. device name, directory, ...) to run "
+    #                                             "the tracking algorithm on.")
     parser.add_argument("--sequence_type", help="The type of image sequence (stream or directory).",
                         choices=[STREAM, DIRECTORY], default=DIRECTORY)
     parser.add_argument("--detection_algo", help="The algorithm used to detect the target ('nn' or 'cmt').",
@@ -377,13 +377,13 @@ def main():
 
     alt_run()
 
-    if args.benchmark:
-        logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
-        run_benchmark(args)
-    else:
-        logging.info("Tracking object on source {0}".format(args.sequence_source))
-        run_results = run_single_session(args)
-        print_metrics(*run_results)
+    # if args.benchmark:
+    #     logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
+    #     run_benchmark(args)
+    # else:
+    #     logging.info("Tracking object on source {0}".format(args.sequence_source))
+    #     run_results = run_single_session(args)
+    #     print_metrics(*run_results)
 
 
 if __name__ == '__main__':
