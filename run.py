@@ -12,6 +12,7 @@ import json
 import time
 import collections
 import numpy as np
+from PIL import Image
 from region_to_bbox import region_to_bbox
 
 
