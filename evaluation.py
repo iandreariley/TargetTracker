@@ -114,6 +114,30 @@ class BboxFormats:
         right_pad = length - left_pad
         return center - left_pad, center + right_pad
 
+
+class SimpleResults:
+
+    def __init__(self, predictions, speed, ground_truth):
+        self.predictions = predictions
+        self.speed = speed
+        self.ground_truth = ground_truth
+
+    def save(self, path):
+        """Serialize this object to file.
+
+        Args:
+            path (str): file path to save to.
+
+        Returns:
+            None
+
+        Raises:
+            FileNotFoundError if the path does not reference a valid file.
+        """
+
+        with open(path, 'wb') as pickle_file:
+            pickle.dump(self, pickle_file)
+
 class TrackingResults:
     """Results of a tracking session.
 

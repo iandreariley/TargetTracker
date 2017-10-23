@@ -6,7 +6,6 @@ import image_sequence
 import evaluation
 import os
 import sys
-import csv
 import util
 import json
 import time
@@ -125,7 +124,7 @@ def evaluate_detector_on_sequence(detection_algo, sequence_path, visualize, prev
                                          target_tracker.get_location_format())
     distance_threshold = load_params(os.path.join('siamfc-params', 'evaluation.json'))['dist_threshold']
     results.add_metric(evaluation.TorrMetrics(distance_threshold))
-    results.add_metric(evaluation.FpsMetric())
+    results.add_metric(evaluation.FpsMetric()
     return results, distance_threshold
 
 
@@ -142,21 +141,28 @@ def run_single_session(args):
         return target_tracker
 
 
-def alt_run():
+def alt_run(args):
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     hp, ev, run, env, design = parse_arguments()
-    d = detector.SiameseNetwork(hp, design, env)
-    gt, frame_name_list, _, _ = _init_video(env, ev, ev.video)
-    bbox = region_to_bbox(gt[ev.start_frame], center=False)
-    t = tracker.Tracker(hp, run, design, frame_name_list, bbox, d)
-    bboxes, speed = t.track()
-    _, precision, precision_auc, iou, _ = _compile_results(gt, bboxes, ev.dist_threshold)
-    print ev.video + \
-          ' -- Precision ' + "(%d px)" % ev.dist_threshold + ': ' + "%.2f" % precision + \
-          ' -- Precision AUC: ' + "%.2f" % precision_auc + \
-          ' -- IOU: ' + "%.2f" % iou + \
-          ' -- Speed: ' + "%.2f" % speed + ' --'
-    print
+    validation_path = os.path.join(env.root, ev.dataset)
+    videos = filter(lambda v: os.path.isdir(os.path.join(validation_path, v)), os.listdir(validation_path))
+    for video in videos:
+        try:
+            # run tracking
+            d = detector.SiameseNetwork(hp, design, env)
+            gt, frame_name_list, _, _ = _init_video(env, ev, video)
+            bbox = region_to_bbox(gt[ev.start_frame], center=False)
+            t = tracker.Tracker(hp, run, design, frame_name_list, bbox, d)
+            bboxes, speed = t.track()
+            _, precision, precision_auc, iou, _ = _compile_results(gt, bboxes, ev.dist_threshold)
+
+            # save results
+            results_filename = video + '_results.p'
+            results_path = os.path.join(args.save_dir, results_filename)
+            results = evaluation.SimpleResults(bboxes, speed, gt)
+            results.save(results_path)
+        except Exception as e:
+            logging.warning("Video {0} failed with exception {1}".format(video, e))
 
 
 def _compile_results(gt, bboxes, dist_threshold):
@@ -246,6 +252,7 @@ def _compute_iou(boxA, boxB):
     assert iou <= 1.01
 
     return iou
+
 
 def parse_arguments(in_hp={}, in_evaluation={}, in_run={}):
     with open('../siamfc-tf/parameters/hyperparams.json') as json_file:
@@ -375,7 +382,7 @@ def main():
     log_level = logging.DEBUG if args.db else logging.INFO
     logging.basicConfig(level=log_level)
 
-    alt_run()
+    alt_run(args)
 
     # if args.benchmark:
     #     logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
