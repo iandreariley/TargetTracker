@@ -25,10 +25,10 @@ class Tracker:
     def track(self):
         num_frames = np.size(self.frame_name_list)
         # stores tracker's output for evaluation
-        bboxes = np.zeros((num_frames,4))
+        bboxes = collections.OrderedDict()
 
         # save first frame position (from ground-truth)
-        bboxes[0,:] = self.bbox
+        bboxes[self.frame_name_list[0]] = self.bbox
         image_ = ndimage.imread(self.frame_name_list[0])
         self.detector.set_target(image_, self.bbox)
 
@@ -37,10 +37,10 @@ class Tracker:
         # Get an image from the queue
         for i in range(1, num_frames):
             image_ = ndimage.imread(self.frame_name_list[i])
-            bboxes[i, :] = self.detector.detect(image_)
+            bboxes[self.frame_name_list[i]] = self.detector.detect(image_)
 
             if self.run.visualization:
-                visualization.show_frame(image_, bboxes[i, :], 1)
+                visualization.show_frame(image_, bboxes[self.frame_name_list[i]], 1)
 
         t_elapsed = time.time() - t_start
         speed = num_frames/t_elapsed
