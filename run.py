@@ -124,7 +124,7 @@ def evaluate_detector_on_sequence(detection_algo, sequence_path, visualize, prev
                                          target_tracker.get_location_format())
     distance_threshold = load_params(os.path.join('siamfc-params', 'evaluation.json'))['dist_threshold']
     results.add_metric(evaluation.TorrMetrics(distance_threshold))
-    results.add_metric(evaluation.FpsMetric()
+    results.add_metric(evaluation.FpsMetric())
     return results, distance_threshold
 
 
@@ -141,32 +141,32 @@ def run_single_session(args):
         return target_tracker
 
 
-def alt_run(args):
+def alt_run():
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     hp, ev, run, env, design = parse_arguments()
-    validation_path = os.path.join(env.root, ev.dataset)
+    validation_path = os.path.join(env.root_dataset, ev.dataset)
     videos = filter(lambda v: os.path.isdir(os.path.join(validation_path, v)), os.listdir(validation_path))
+    d = detector.SiameseNetwork(hp, design, env)
     for video in videos:
-        try:
-            # run tracking
-            d = detector.SiameseNetwork(hp, design, env)
-            gt, frame_name_list, _, _ = _init_video(env, ev, video)
-            bbox = region_to_bbox(gt[ev.start_frame], center=False)
-            t = tracker.Tracker(hp, run, design, frame_name_list, bbox, d)
-            bboxes, speed = t.track()
-            _, precision, precision_auc, iou, _ = _compile_results(gt, bboxes, ev.dist_threshold)
+        # run tracking
+        results_filename = video + '_results.p'
+        results_path = os.path.join(ev.save_dir, results_filename)
 
-            # save results
-            results_filename = video + '_results.p'
-            results_path = os.path.join(args.save_dir, results_filename)
-            results = evaluation.SimpleResults(bboxes, speed, gt)
-            results.save(results_path)
-        except Exception as e:
-            logging.warning("Video {0} failed with exception {1}".format(video, e))
+        if os.path.exists(results_path):
+            continue
+        gt, frame_name_list, _, _ = _init_video(env, ev, video)
+        bbox = region_to_bbox(gt[ev.start_frame], center=False)
+        t = tracker.Tracker(hp, run, design, frame_name_list, bbox, d)
+        bboxes, speed = t.track()
+        _, precision, precision_auc, iou, _ = _compile_results(gt, bboxes, ev.dist_threshold)
+
+        # save results
+        results = evaluation.SimpleResults(bboxes, speed, map(lambda bb: region_to_bbox(bb, center=False), gt))
+        results.save(results_path)
 
 
 def _compile_results(gt, bboxes, dist_threshold):
-    l = np.size(bboxes, 0)
+    l = len(bboxes.values())
     gt4 = np.zeros((l, 4))
     new_distances = np.zeros(l)
     new_ious = np.zeros(l)
@@ -175,8 +175,8 @@ def _compile_results(gt, bboxes, dist_threshold):
 
     for i in range(l):
         gt4[i, :] = region_to_bbox(gt[i, :], center=False)
-        new_distances[i] = _compute_distance(bboxes[i, :], gt4[i, :])
-        new_ious[i] = _compute_iou(bboxes[i, :], gt4[i, :])
+        new_distances[i] = _compute_distance(np.array(bboxes.values()[i]), gt4[i, :])
+        new_ious[i] = _compute_iou(np.array(bboxes.values()[i]), gt4[i, :])
 
     # what's the percentage of frame in which center displacement is inferior to given threshold? (OTB metric)
     precision = sum(new_distances < dist_threshold)/np.size(new_distances) * 100
@@ -382,7 +382,7 @@ def main():
     log_level = logging.DEBUG if args.db else logging.INFO
     logging.basicConfig(level=log_level)
 
-    alt_run(args)
+    alt_run()
 
     # if args.benchmark:
     #     logging.info("Running benchmark in directory {0} with {1} videos".format(args.sequence_source, len(os.listdir(args.sequence_source))))
