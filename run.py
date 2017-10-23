@@ -154,15 +154,18 @@ def alt_run():
 
         if os.path.exists(results_path):
             continue
-        gt, frame_name_list, _, _ = _init_video(env, ev, video)
-        bbox = region_to_bbox(gt[ev.start_frame], center=False)
-        t = tracker.Tracker(hp, run, design, frame_name_list, bbox, d)
-        bboxes, speed = t.track()
-        _, precision, precision_auc, iou, _ = _compile_results(gt, bboxes, ev.dist_threshold)
+        try:
+            gt, frame_name_list, _, _ = _init_video(env, ev, video)
+            bbox = region_to_bbox(gt[ev.start_frame], center=False)
+            t = tracker.Tracker(hp, run, design, frame_name_list, bbox, d)
+            bboxes, speed = t.track()
+            _, precision, precision_auc, iou, _ = _compile_results(gt, bboxes, ev.dist_threshold)
 
-        # save results
-        results = evaluation.SimpleResults(bboxes, speed, map(lambda bb: region_to_bbox(bb, center=False), gt))
-        results.save(results_path)
+            # save results
+            results = evaluation.SimpleResults(bboxes, speed, map(lambda bb: region_to_bbox(bb, center=False), gt))
+            results.save(results_path)
+        except Exception as e:
+            logging.warn("Sequence {0} threw the following exception: {1}".format(video, e))
 
 
 def _compile_results(gt, bboxes, dist_threshold):
