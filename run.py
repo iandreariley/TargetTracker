@@ -146,7 +146,7 @@ def alt_run():
     hp, ev, run, env, design = parse_arguments()
     validation_path = os.path.join(env.root_dataset, ev.dataset)
     videos = filter(lambda v: os.path.isdir(os.path.join(validation_path, v)), os.listdir(validation_path))
-    d = detector.SiameseNetwork(hp, design, env)
+    d = detector.CmtDetector()
     for video in videos:
         # run tracking
         results_filename = video + '_results.p'

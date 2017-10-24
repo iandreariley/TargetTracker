@@ -746,7 +746,7 @@ class CmtDetector:
         if self._cmt.has_result:
             self.location = self._cmt.tl + self._cmt.br
 
-        return self.location
+        return self._convert_to_standard_bbox_format(self.location)
 
     def get_bbox_format(self):
         """Returns format used by this detector. Part of Detector implementation."""
@@ -767,8 +767,7 @@ class CmtDetector:
         """
 
         grey_image = self._to_grayscale_image(image)
-        left, top, right, bottom = evaluation.BboxFormats.convert_bbox_format(bbox, evaluation.BboxFormats.CCWH,
-                                                                              evaluation.BboxFormats.TLBR)
+        left, top, right, bottom = self._convert_to_CMT_bbox_format(bbox)
 
         self._cmt.initialise(grey_image, (left, top), (right, bottom))
         self.location = left, top, right, bottom
@@ -777,4 +776,16 @@ class CmtDetector:
         """Convert RGB image to grayscale."""
 
         return cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+    def _convert_to_standard_bbox_format(self, bbox):
+        """Converts from (left, top, right, bottom) format to (left, top, width, height) format."""
+
+        left, top, right, bottom = bbox
+        return left, top, right - left, bottom - top
+
+    def _convert_to_CMT_bbox_format(self, bbox):
+        """Converts bbox format from (left, top, width, height) to (left, top, right, bottom) expected by CMT."""
+
+        left, top, width, height = bbox
+        return left, top, left + width, top + height
 
