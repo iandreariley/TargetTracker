@@ -1,6 +1,6 @@
 from dronekit import *
 import time
-from math import cos, tan, atan, sin, pi
+from math import cos, tan, atan, sin, pi, atan2
 import numpy as np
 import sys
 
@@ -29,7 +29,7 @@ def condition_yaw(vehicle, heading, relative=False):
         0, 0, 0)    # param 5 ~ 7 not used
     # send command to vehicle
     vehicle.send_mavlink(msg)
-    
+
 def set_velocity_from_image(vehicle, img_x, img_y, debug=False):
     x = img_x - X_SHIFT
     y = -img_y + Y_SHIFT
@@ -37,12 +37,12 @@ def set_velocity_from_image(vehicle, img_x, img_y, debug=False):
     pitch = vehicle.attitude.pitch
     roll = vehicle.attitude.roll
     altitude = vehicle.location.global_relative_frame.alt
-    
+
     x_real = float(x) / float(X_SHIFT)
     y_real = float(y) / float(PIX_HEIGHT) / 2.0
     theta_x = CAM_X_ANGLE * x_real / 2.0
     theta_y = CAM_Y_ANGLE * y_real
-        
+
     y_rel = altitude / (math.tan(-pitch - theta_y))
     x_rel = y_rel * math.tan(theta_x)
 
@@ -65,7 +65,7 @@ def set_velocity_from_image(vehicle, img_x, img_y, debug=False):
     ])
 
     position = np.array([x_rel, y_rel, -altitude])
-        
+
     e, n, d = rbn_roll.dot(rbn_yaw.dot(position))
     horz_plane = np.array([n,e])
     unit_vector = horz_plane / np.linalg.norm(horz_plane)
@@ -90,9 +90,12 @@ def set_velocity_from_image(vehicle, img_x, img_y, debug=False):
         print "x: %g; y: %g" % (unit_vector[0], unit_vector[1])
         print "final-x: %g; final-y: %g" % (final_vector[0], final_vector[1])
 
+    radians = atan2(e, n)
+    if radians < 0:
+        radians += 2.0 * pi
     set_velocity(vehicle, final_vector[0], final_vector[1])
-    condition_yaw(vehicle, atan(e / n) * 180 / pi)
-    
+    condition_yaw(vehicle, radians * 180 / pi)
+
 def set_velocity(vehicle, n, e):
     msg = vehicle.message_factory.set_position_target_local_ned_encode(
         0,       # time_boot_ms (not used)
@@ -104,4 +107,4 @@ def set_velocity(vehicle, n, e):
         0, 0, 0, # x, y, z acceleration (not supported yet, ignored in GCS_Mavlink)
         0, 0)    # yaw, yaw_rate (not supported yet, ignored in GCS_Mavlink)
     vehicle.send_mavlink(msg)
-    
+
