@@ -21,3 +21,12 @@ This is the current home of the visual target tracking project undertaken as a j
     - enter the following command `arp -a` and look for an ip address starting with 10
     - enter the following command `ssh -Y ubuntu@10.x.x.x` (fill in the xs based on the previous step)
     - this will log you in to the TX1 as the root user, ubuntu.
+- To connect a program to the Pixhawk:
+    - Run the following command in the terminal: `run_mavproxy`. This runs `/usr/bin/run_mavproxy` which uses mavproxy to proxy the connection at /dev/ttyUSB0 (the pixhawk connection) to any number of IP addresses. Currently, the only address is 127.0.0.1:14551
+    - then, connect in python using the dronekit module thus: `from dronekit import connect; vehicle = connect('udp:127.0.0.1:14551', 921600, wait_ready=True)`
+    - The vehicle object (of the Vehicle class in dronekit) is a highlevel interface to the Pixhawk, and the drone can be controlled by calling its methods.
+- To switch the band of the Wifi access point:
+    - edit the following fields in  `/etc/NetworkManager/system-connections/WiFiAP`
+        - `band=bg` for 2.4 GHz, `band=a` for 5GHz
+        - `channel=11` if for 2.4 GHz (`band=bg`), `channel=36` otherwise
+    - Restart the TX1
