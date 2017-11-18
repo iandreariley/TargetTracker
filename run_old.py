@@ -8,6 +8,7 @@ from os.path import isdir
 import sys
 import time
 from dronekit import *
+import logging
 
 import numpy as np
 
@@ -37,36 +38,37 @@ def arm_and_takeoff(vehicle, aTargetAltitude):
     Arms vehicle and fly to aTargetAltitude.
     """
 
-    print("Basic pre-arm checks")
     # Don't try to arm until autopilot is ready
     while not vehicle.is_armable:
-        print(" Waiting for vehicle to initialise...")
+        logging.info('Waiting for vehicle to initialize before arming')
         time.sleep(1)
 
-    print("Arming motors")
+    logging.info("Arming motors")
     # Copter should arm in GUIDED mode
     vehicle.mode = VehicleMode("GUIDED")
     vehicle.armed = True
 
     # Confirm vehicle armed before attempting to take off
     while not vehicle.armed:
-        print(" Waiting for arming...")
+        logging.info(" Waiting for arming...")
         time.sleep(1)
 
-    print("Taking off!")
+    logging.info("Taking off!")
     vehicle.simple_takeoff(aTargetAltitude)  # Take off to target altitude
 
     # Wait until the vehicle reaches a safe height before processing the goto
     #  (otherwise the command after Vehicle.simple_takeoff will execute
     #   immediately).
     while True:
-        print(" Altitude: ", vehicle.location.global_relative_frame.alt)
+        logging.info(" Altitude: ", vehicle.location.global_relative_frame.alt)
         # Break and return from function just below target altitude.
         if vehicle.location.global_relative_frame.alt >= aTargetAltitude * 0.95:
-            print("Reached target altitude")
+            logging.info("Reached target altitude")
             break
         time.sleep(1)
 
+
+logging.basicConfig(level=logging.INFO)
 
 CMT = CMT.CMT()
 
@@ -81,13 +83,13 @@ parser.add_argument('--quiet', dest='quiet', action='store_true', help='Do not s
 args = parser.parse_args()
 CMT.estimate_scale = True
 CMT.estimate_rotation = False
-print(args.vehicleurl)
+logging.info(args.vehicleurl)
 try:
         vehicle = connect(args.vehicleurl, baud=BAUD, wait_ready=True)
         arm_and_takeoff(vehicle, 10)
 except Exception as inst:
-        print inst.args
-        print 'Could not connect to vehicle, landing and exiting.'
+        logging.warning(inst.args)
+        logging.warning('Could not connect to vehicle, landing and exiting.')
         vehicle.mode = VehicleMode("RTL")
         vehicle.close()
         sys.exit(1)
@@ -104,18 +106,18 @@ while not cap.isOpened() and i < 10:
         cap = cv2.VideoCapture(i)
         i += 1
 
-print("connected on %d" % (i - 1))
+logging.info("connected on %d" % (i - 1))
 
 if preview is None:
         preview = True
 
 # Check if videocapture is working
 if not cap.isOpened():
-        print 'Unable to open video input.'
+        logging.warning('Unable to open video input.')
         sys.exit(1)
 
 while preview:
-        print "getting first image capture..."
+        logging.warning("getting first image capture...")
         status, im = cap.read()
         cv2.imshow('Preview', im)
         k = cv2.waitKey(10)
@@ -148,10 +150,10 @@ if args.bbox is not None:
         br = bbox[2:4]
 else:
         # Get rectangle input from user
-        print 'getting user input'
+         logging.info('getting user input')
         (tl, br) = util.get_rect(im_draw)
 
-print 'using', tl, br, 'as init bb'
+logging.info('using', tl, br, 'as init bb')
 
 
 CMT.initialise(im_gray0, tl, br)
@@ -174,7 +176,7 @@ while not stopped:
         if CMT.has_result:
                 # get centroid of bounding box and update drone velocity vectors.
                 center_x,center_y = get_centroid(CMT)
-                print "x: {0}\ny:{1}\n\n".format(center_x, center_y)
+                logging.info("x: {0}\ny:{1}\n\n".format(center_x, center_y))
                 set_velocity_from_image(vehicle, center_x, center_y)
 
                 # Draw updated estimate
@@ -207,5 +209,5 @@ while not stopped:
         # Advance frame number
         frame += 1
 end = time.time()
-print('fps: %f' % (frame / (end - start)))
-#        print '{5:04d}: center: {0:.2f},{1:.2f} scale: {2:.2f}, active: {3:03d}, {4:04.0f}ms'.format(CMT.center[0], CMT.center[1], CMT.scale_estimate, CMT.active_keypoints.shape[0], 1000 * (toc - tic), frame)
+logging.info('fps: %f' % (frame / (end - start)))
+
