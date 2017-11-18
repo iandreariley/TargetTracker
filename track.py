@@ -75,7 +75,7 @@ CMT = CMT.CMT()
 parser = argparse.ArgumentParser(description='Track an object.')
 
 parser.add_argument('--vehicleurl', help='url for the vehicle to control.', default='/dev/ttyUSB0')
-parser.add_argument('--preview', action='store_false', help='Force preview')
+parser.add_argument('--no-preview', dest='preview', action='store_false', help='No preview, in the event that the bounding box is passed as an argument.')
 parser.add_argument('--bbox', dest='bbox', help='Specify initial bounding box.')
 parser.add_argument('--quiet', dest='quiet', action='store_true', help='Do not show graphical output (Useful in combination with --output-dir ).')
 
@@ -145,7 +145,7 @@ if args.bbox is not None:
         br = bbox[2:4]
 else:
         # Get rectangle input from user
-         logging.info('getting user input')
+        logging.info('getting user input')
         (tl, br) = util.get_rect(im_draw)
 
 logging.info('using', tl, br, 'as init bb')
