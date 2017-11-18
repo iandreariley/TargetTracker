@@ -75,8 +75,7 @@ CMT = CMT.CMT()
 parser = argparse.ArgumentParser(description='Track an object.')
 
 parser.add_argument('--vehicleurl', help='url for the vehicle to control.', default='/dev/ttyUSB0')
-parser.add_argument('--preview', dest='preview', action='store_const', const=True, default=None, help='Force preview')
-parser.add_argument('--no-preview', dest='preview', action='store_const', const=False, default=None, help='Disable preview')
+parser.add_argument('--preview', action='store_false', help='Force preview')
 parser.add_argument('--bbox', dest='bbox', help='Specify initial bounding box.')
 parser.add_argument('--quiet', dest='quiet', action='store_true', help='Do not show graphical output (Useful in combination with --output-dir ).')
 
@@ -96,20 +95,16 @@ except Exception as inst:
 
  # Clean up
 cv2.destroyAllWindows()
-
 preview = args.preview
 
-# If no input path was specified, open camera device
+# Dirty hack for finding which USB device the camera is on.
 cap = cv2.VideoCapture(0)
 i = 1
 while not cap.isOpened() and i < 10:
         cap = cv2.VideoCapture(i)
         i += 1
 
-logging.info("connected on %d" % (i - 1))
-
-if preview is None:
-        preview = True
+logging.info("Video Capture connected on device %d." % (i - 1))
 
 # Check if videocapture is working
 if not cap.isOpened():
