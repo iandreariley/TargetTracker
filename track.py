@@ -74,7 +74,7 @@ CMT = CMT.CMT()
 
 parser = argparse.ArgumentParser(description='Track an object.')
 
-parser.add_argument('--vehicleurl', help='url for the vehicle to control.', default='/dev/ttyUSB0')
+parser.add_argument('--vehicleurl', help='url for the vehicle to control.', default='udp:127.0.0.1:14551')
 parser.add_argument('--no-preview', dest='preview', action='store_false', help='No preview, in the event that the bounding box is passed as an argument.')
 parser.add_argument('--bbox', dest='bbox', help='Specify initial bounding box.')
 parser.add_argument('--quiet', dest='quiet', action='store_true', help='Do not show graphical output (Useful in combination with --output-dir ).')
