@@ -9,6 +9,7 @@ import sys
 import time
 from dronekit import *
 import logging
+import csv
 
 import numpy as np
 
@@ -18,11 +19,21 @@ from controls import set_velocity_from_image
 
 video_directory = "videos/"
 BAUD = 921600
+GT_FILENAME = 'gt.txt'
 
 def get_centroid(CMT):
         x = (CMT.tl[0] + CMT.tr[0]) / 2
         y = (CMT.tl[1] + CMT.br[1]) / 2
         return np.array([x,y])
+
+def save_bounding_box(tl, br):
+    left, top = tl
+    right, bottom = br
+    width = right - left
+    height = bottom - top
+    with open (os.path.join(video_directory, GT_FILENAME), 'a') as bbox_file:
+        writer = csv.writer(bbox_file, delimiter=',')
+        writer.writerow([left, top, width, height])
 
 def create_video_directory():
         video_count = 0
@@ -84,7 +95,7 @@ CMT.estimate_scale = True
 CMT.estimate_rotation = False
 logging.info(args.vehicleurl)
 try:
-        vehicle = connect(args.vehicleurl, baud=BAUD, wait_ready=True)
+        vehicle = connect(args.vehicleurl, baud=BAUD, wait_ready=False)
         arm_and_takeoff(vehicle, 10)
 except Exception as inst:
         logging.warning(inst.args)
@@ -185,7 +196,8 @@ while not stopped:
         util.draw_keypoints(CMT.votes[:, :2], im_draw)  # blue
         util.draw_keypoints(CMT.outliers[:, :2], im_draw, (0, 0, 255))
 
-        cv2.imwrite(video_path + "/" +  str(frame) + ".png", im_draw)
+        cv2.imwrite(video_path + "/" +  str(frame) + ".png", im)
+        save_bounding_box(CMT.tl, CMT.br)
 
         if not args.quiet:
                 cv2.imshow('main', im_draw)
