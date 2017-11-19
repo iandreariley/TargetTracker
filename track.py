@@ -26,12 +26,12 @@ def get_centroid(CMT):
         y = (CMT.tl[1] + CMT.br[1]) / 2
         return np.array([x,y])
 
-def save_bounding_box(tl, br):
+def save_bounding_box(video_path, tl, br):
     left, top = tl
     right, bottom = br
     width = right - left
     height = bottom - top
-    with open (os.path.join(video_directory, GT_FILENAME), 'a') as bbox_file:
+    with open (os.path.join(video_path, GT_FILENAME), 'a') as bbox_file:
         writer = csv.writer(bbox_file, delimiter=',')
         writer.writerow([left, top, width, height])
 
@@ -71,7 +71,7 @@ def arm_and_takeoff(vehicle, aTargetAltitude):
     #  (otherwise the command after Vehicle.simple_takeoff will execute
     #   immediately).
     while True:
-        logging.info(" Altitude: ", vehicle.location.global_relative_frame.alt)
+        logging.info(" Altitude: {0}".format(vehicle.location.global_relative_frame.alt))
         # Break and return from function just below target altitude.
         if vehicle.location.global_relative_frame.alt >= aTargetAltitude * 0.95:
             logging.info("Reached target altitude")
@@ -197,7 +197,7 @@ while not stopped:
         util.draw_keypoints(CMT.outliers[:, :2], im_draw, (0, 0, 255))
 
         cv2.imwrite(video_path + "/" +  str(frame) + ".png", im)
-        save_bounding_box(CMT.tl, CMT.br)
+        save_bounding_box(video_path, CMT.tl, CMT.br)
 
         if not args.quiet:
                 cv2.imshow('main', im_draw)
