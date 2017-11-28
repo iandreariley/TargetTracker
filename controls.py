@@ -4,7 +4,7 @@ from math import cos, tan, atan, sin, pi, atan2
 import numpy as np
 import sys
 
-PIX_WIDTH = 640
+PIX_WIDTH = 1280
 PIX_HEIGHT = 480
 Y_SHIFT = PIX_HEIGHT / 2
 X_SHIFT = PIX_WIDTH / 2
