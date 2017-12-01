@@ -3,8 +3,9 @@ import time
 from math import cos, tan, atan, sin, pi, atan2
 import numpy as np
 import sys
+import logging
 
-PIX_WIDTH = 1280
+PIX_WIDTH = 640
 PIX_HEIGHT = 480
 Y_SHIFT = PIX_HEIGHT / 2
 X_SHIFT = PIX_WIDTH / 2
@@ -90,6 +91,8 @@ def set_velocity_from_image(vehicle, img_x, img_y, debug=False):
         print "x: %g; y: %g" % (unit_vector[0], unit_vector[1])
         print "final-x: %g; final-y: %g" % (final_vector[0], final_vector[1])
 
+    logging.info('north: {0}'.format(n))
+    logging.info('east: {0}'.format(e))
     radians = atan2(e, n)
     if radians < 0:
         radians += 2.0 * pi
