@@ -47,4 +47,4 @@ for i, img_file in enumerate(imgs):
     image = cv2.imread(os.path.join(args.video_directory, img_file))
     draw_bbox(image, boxes[i], (255,255,255), False)
     cv2.imshow('run', image)
-    cv2.waitKey(10)
+    cv2.waitKey(100)

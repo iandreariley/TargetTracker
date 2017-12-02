@@ -31,7 +31,7 @@ def condition_yaw(vehicle, heading, relative=False):
     # send command to vehicle
     vehicle.send_mavlink(msg)
 
-def set_velocity_from_image(vehicle, img_x, img_y, debug=False):
+def set_velocity_from_image(vehicle, img_x, img_y, speed=1, debug=False):
     x = img_x - X_SHIFT
     y = -img_y + Y_SHIFT
     yaw = vehicle.attitude.yaw
@@ -70,7 +70,7 @@ def set_velocity_from_image(vehicle, img_x, img_y, debug=False):
     e, n, d = rbn_roll.dot(rbn_yaw.dot(position))
     horz_plane = np.array([n,e])
     unit_vector = horz_plane / np.linalg.norm(horz_plane)
-    final_vector = 5.0 * unit_vector
+    final_vector = speed * unit_vector
 
     if debug:
         print "img_x: %d; img_y: %d" % (img_x, img_y)

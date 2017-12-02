@@ -96,7 +96,7 @@ CMT.estimate_rotation = False
 logging.info(args.vehicleurl)
 try:
         vehicle = connect(args.vehicleurl, baud=BAUD, wait_ready=False)
-        arm_and_takeoff(vehicle, 10)
+        arm_and_takeoff(vehicle, 2.5)
 except Exception as inst:
         logging.warning(inst.args)
         logging.warning('Could not connect to vehicle, landing and exiting.')
@@ -217,4 +217,7 @@ while not stopped:
         frame += 1
 end = time.time()
 logging.info('fps: %f' % (frame / (end - start)))
+
+vehicle.mode = VehicleMode('LAND')
+vehicle.close()
 
